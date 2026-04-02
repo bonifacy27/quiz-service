@@ -1,0 +1,102 @@
+<%- include('partials/header', { title: 'Игрок', user: null }) %>
+<section class="card">
+  <h1>Игрок: <%= player.name %></h1>
+  <p>Игра: <strong><%= game.title %></strong></p>
+  <p>Код: <code><%= game.code %></code></p>
+</section>
+
+<section class="card" id="player-question">
+  <h2>Ожидание начала игры...</h2>
+  <div id="player-content"></div>
+</section>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  const socket = io();
+  const player = <%- JSON.stringify(player) %>;
+  const game = <%- JSON.stringify(game) %>;
+  const root = document.getElementById('player-content');
+
+  socket.emit('player:join', {
+    gameCode: game.code,
+    playerId: player.id,
+    sessionToken: player.sessionToken
+  });
+
+  socket.on('question:show', (question) => {
+    renderQuestion(question);
+  });
+
+  socket.on('buzz:winner', ({ playerId }) => {
+    const div = document.createElement('div');
+    div.className = 'notice';
+    div.innerText = playerId === player.id ? 'Вы нажали первым!' : 'Кто-то уже нажал первым';
+    root.appendChild(div);
+  });
+
+  function renderQuestion(question) {
+    root.innerHTML = '';
+    document.querySelector('#player-question h2').innerText = question.title;
+
+    if (question.type === 'abcd') {
+      question.payload.options.forEach((option, index) => {
+        const btn = document.createElement('button');
+        btn.className = 'button option';
+        btn.innerText = option;
+        btn.onclick = () => {
+          socket.emit('answer:submit', {
+            gameCode: game.code,
+            playerId: player.id,
+            answer: { optionIndex: index }
+          });
+          btn.disabled = true;
+        };
+        root.appendChild(btn);
+      });
+    } else if (question.type === 'text') {
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.placeholder = 'Ваш ответ';
+      const btn = document.createElement('button');
+      btn.className = 'button';
+      btn.innerText = 'Ответить';
+      btn.onclick = () => {
+        socket.emit('answer:submit', {
+          gameCode: game.code,
+          playerId: player.id,
+          answer: { text: input.value }
+        });
+      };
+      root.appendChild(input);
+      root.appendChild(btn);
+    } else if (question.type === 'number') {
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.placeholder = 'Введите число';
+      const btn = document.createElement('button');
+      btn.className = 'button';
+      btn.innerText = 'Ответить';
+      btn.onclick = () => {
+        socket.emit('answer:submit', {
+          gameCode: game.code,
+          playerId: player.id,
+          answer: { number: Number(input.value) }
+        });
+      };
+      root.appendChild(input);
+      root.appendChild(btn);
+    } else if (question.type === 'buzz') {
+      const btn = document.createElement('button');
+      btn.className = 'button big-button';
+      btn.innerText = 'ЖМИ!';
+      btn.onclick = () => {
+        socket.emit('buzz:press', {
+          gameCode: game.code,
+          playerId: player.id
+        });
+      };
+      root.appendChild(btn);
+    }
+  }
+</script>
+<%- include('partials/footer') %>

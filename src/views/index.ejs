@@ -1,0 +1,24 @@
+<%- include('partials/header', { title: 'Главная', user }) %>
+<section class="card">
+  <h1>Онлайн-сервис квизов</h1>
+  <p>Легкий boilerplate для MVP под слабый VPS.</p>
+  <p><a class="button" href="/admin/dashboard">Перейти в админку</a></p>
+</section>
+
+<section class="card">
+  <h2>Последние игры</h2>
+  <% if (!games.length) { %>
+    <p>Пока игр нет.</p>
+  <% } else { %>
+    <ul>
+      <% games.forEach(game => { %>
+        <li>
+          <strong><%= game.title %></strong> — код: <code><%= game.code %></code>
+          [<a href="/game/<%= game.code %>">Экран</a>]
+          [<a href="/join/<%= game.code %>">Вход игрока</a>]
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</section>
+<%- include('partials/footer') %>

@@ -1,0 +1,72 @@
+<%- include('partials/header', { title: 'Управление игрой', user }) %>
+<section class="card">
+  <h1><%= game.title %></h1>
+  <p>Код: <code><%= game.code %></code></p>
+  <p>Экран: <a href="/game/<%= game.code %>">/game/<%= game.code %></a></p>
+  <p>Игроки: <a href="/join/<%= game.code %>">/join/<%= game.code %></a></p>
+</section>
+
+<section class="card">
+  <button class="button" id="start-game">Запустить игру</button>
+  <button class="button" id="next-question">Следующий вопрос</button>
+  <div id="control-result"></div>
+</section>
+
+<section class="card">
+  <h2>Вопросы</h2>
+  <% if (!questions.length) { %>
+    <p>Вопросов нет</p>
+  <% } else { %>
+    <ol>
+      <% questions.forEach(q => { %>
+        <li><strong>[<%= q.type %>]</strong> <%= q.title %></li>
+      <% }) %>
+    </ol>
+  <% } %>
+</section>
+
+<section class="card">
+  <h2>Realtime журнал</h2>
+  <div id="log" class="log"></div>
+</section>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  const socket = io();
+  const game = <%- JSON.stringify(game) %>;
+  const result = document.getElementById('control-result');
+  const log = document.getElementById('log');
+
+  socket.emit('host:join', { gameCode: game.code });
+
+  function appendLog(text) {
+    const line = document.createElement('div');
+    line.innerText = new Date().toLocaleTimeString() + ' — ' + text;
+    log.prepend(line);
+  }
+
+  document.getElementById('start-game').onclick = async () => {
+    const response = await fetch('/api/admin/games/<%= game.id %>/start', {
+      method: 'POST'
+    });
+    const data = await response.json();
+    result.innerText = data.ok ? 'Игра запущена' : 'Ошибка';
+  };
+
+  document.getElementById('next-question').onclick = async () => {
+    const response = await fetch('/api/admin/games/<%= game.id %>/next-question', {
+      method: 'POST'
+    });
+    const data = await response.json();
+    result.innerText = data.finished ? 'Игра завершена' : 'Следующий вопрос отправлен';
+  };
+
+  socket.on('player:list', ({ players }) => {
+    appendLog('Подключено игроков: ' + players.length);
+  });
+
+  socket.on('answer:received', ({ playerId, answer }) => {
+    appendLog('Ответ от игрока #' + playerId + ': ' + JSON.stringify(answer));
+  });
+</script>
+<%- include('partials/footer') %>

@@ -1,0 +1,35 @@
+<%- include('partials/header', { title: 'Новая игра', user }) %>
+<section class="card narrow">
+  <h1>Создать игру</h1>
+  <form id="new-game-form">
+    <label>Название игры</label>
+    <input type="text" name="title" maxlength="100" required />
+    <button class="button" type="submit">Создать</button>
+  </form>
+  <div id="result"></div>
+</section>
+
+<script>
+  document.getElementById('new-game-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const payload = { title: formData.get('title') };
+
+    const response = await fetch('/api/admin/games', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json();
+    const result = document.getElementById('result');
+
+    if (!response.ok) {
+      result.innerHTML = '<div class="error">' + (data.error || 'Ошибка') + '</div>';
+      return;
+    }
+
+    result.innerHTML = '<div class="success">Игра создана. Код: <code>' + data.code + '</code>. <a href="/admin/games/' + data.gameId + '/control">Перейти к управлению</a></div>';
+  });
+</script>
+<%- include('partials/footer') %>

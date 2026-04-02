@@ -1,0 +1,13 @@
+<%- include('partials/header', { title: 'Вход в игру', user: null }) %>
+<section class="card narrow">
+  <h1>Подключение к игре</h1>
+  <p><strong><%= game.title %></strong></p>
+  <p>Код игры: <code><%= game.code %></code></p>
+
+  <form method="post">
+    <label>Ваше имя</label>
+    <input type="text" name="name" maxlength="40" required />
+    <button class="button" type="submit">Войти в игру</button>
+  </form>
+</section>
+<%- include('partials/footer') %>

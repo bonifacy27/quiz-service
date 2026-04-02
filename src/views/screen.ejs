@@ -1,0 +1,56 @@
+<%- include('partials/header', { title: 'Экран игры', user: null }) %>
+<section class="card">
+  <h1><%= game.title %></h1>
+  <p>Код игры: <code><%= game.code %></code></p>
+  <div class="row gap">
+    <div>
+      <img src="<%= qrDataUrl %>" alt="QR code" class="qr" />
+      <p><a href="<%= qrUrl %>"><%= qrUrl %></a></p>
+    </div>
+    <div class="screen-box">
+      <h2 id="screen-title">Ожидание начала игры</h2>
+      <div id="screen-content"></div>
+    </div>
+  </div>
+</section>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  const socket = io();
+  const game = <%- JSON.stringify(game) %>;
+  const titleEl = document.getElementById('screen-title');
+  const contentEl = document.getElementById('screen-content');
+
+  socket.emit('screen:join', { gameCode: game.code });
+
+  socket.on('game:started', () => {
+    titleEl.innerText = 'Игра началась';
+  });
+
+  socket.on('question:show', (question) => {
+    titleEl.innerText = question.title;
+    contentEl.innerHTML = '';
+
+    if (question.type === 'abcd') {
+      const ul = document.createElement('ul');
+      question.payload.options.forEach((option) => {
+        const li = document.createElement('li');
+        li.innerText = option;
+        ul.appendChild(li);
+      });
+      contentEl.appendChild(ul);
+    } else if (question.type === 'buzz') {
+      contentEl.innerHTML = '<div class="big-label">Кто быстрее нажмет первым?</div>';
+    } else {
+      contentEl.innerText = 'Вопрос отображен на экране';
+    }
+  });
+
+  socket.on('buzz:winner', ({ playerId }) => {
+    const div = document.createElement('div');
+    div.className = 'notice';
+    div.innerText = 'Первым нажал игрок #' + playerId;
+    contentEl.appendChild(div);
+  });
+</script>
+<%- include('partials/footer') %>

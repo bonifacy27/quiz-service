@@ -13,6 +13,14 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+function getPublicBaseUrl(req) {
+  const forwardedProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
+  const protocol = forwardedProto || req.protocol || "http";
+  const host = req.get("x-forwarded-host") || req.get("host");
+  if (host) return `${protocol}://${host}`;
+  return config.appUrl;
+}
+
 function buildQuestionPayload(type, body) {
   const timeLimitSec = Number(body.timeLimitSec || 0);
 
@@ -122,16 +130,24 @@ router.get("/player/:code", async (req, res) => {
     return res.redirect(`/join/${req.params.code}`);
   }
   const game = await get("SELECT * FROM games WHERE code = ?", [req.params.code]);
-  res.render("player", { game, player: req.session.player });
+  const leaderboard = await all(
+    "SELECT id, name, score FROM players WHERE game_id = ? ORDER BY score DESC, id ASC",
+    [game.id]
+  );
+  res.render("player", { game, player: req.session.player, leaderboard });
 });
 
 router.get("/game/:code", async (req, res) => {
   const game = await get("SELECT * FROM games WHERE code = ?", [req.params.code]);
   if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
 
-  const qrUrl = `${config.appUrl}/join/${game.code}`;
+  const qrUrl = `${getPublicBaseUrl(req)}/join/${game.code}`;
   const qrDataUrl = await QRCode.toDataURL(qrUrl);
-  res.render("screen", { game, qrUrl, qrDataUrl });
+  const leaderboard = await all(
+    "SELECT id, name, score FROM players WHERE game_id = ? ORDER BY score DESC, id ASC",
+    [game.id]
+  );
+  res.render("screen", { game, qrUrl, qrDataUrl, leaderboard });
 });
 
 router.get("/admin/login", (req, res) => {
@@ -328,8 +344,12 @@ router.get("/admin/games/:id/control", requireAdmin, async (req, res) => {
     "SELECT * FROM questions WHERE game_id = ? ORDER BY sort_order ASC, id ASC",
     [game.id]
   );
+  const leaderboard = await all(
+    "SELECT id, name, score FROM players WHERE game_id = ? ORDER BY score DESC, id ASC",
+    [game.id]
+  );
 
-  res.render("admin-game-control", { game, questions, user: req.session.user });
+  res.render("admin-game-control", { game, questions, leaderboard, user: req.session.user });
 });
 
 module.exports = router;

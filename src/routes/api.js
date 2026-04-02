@@ -54,6 +54,13 @@ router.post("/admin/games/:id/start", requireAdmin, async (req, res) => {
     code: game.code,
     title: game.title,
   });
+  const leaderboard = await all(
+    "SELECT id, name, score FROM players WHERE game_id = ? ORDER BY score DESC, id ASC",
+    [game.id]
+  );
+  req.app.get("io").to(`game:${game.code}`).emit("leaderboard:update", {
+    leaderboard: leaderboard.map((player, index) => ({ ...player, place: index + 1 })),
+  });
 
   res.json({ ok: true });
 });

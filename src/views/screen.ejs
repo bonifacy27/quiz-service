@@ -14,12 +14,35 @@
   </div>
 </section>
 
+<section class="card">
+  <h2>Leaderboard</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Место</th>
+        <th>Игрок</th>
+        <th>Очки</th>
+      </tr>
+    </thead>
+    <tbody id="leaderboard-body">
+      <% leaderboard.forEach((player, index) => { %>
+        <tr>
+          <td><%= index + 1 %></td>
+          <td><%= player.name %></td>
+          <td><%= player.score %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</section>
+
 <script src="/socket.io/socket.io.js"></script>
 <script>
   const socket = io();
   const game = <%- JSON.stringify(game) %>;
   const titleEl = document.getElementById('screen-title');
   const contentEl = document.getElementById('screen-content');
+  const leaderboardBody = document.getElementById('leaderboard-body');
 
   socket.emit('screen:join', { gameCode: game.code });
 
@@ -52,5 +75,18 @@
     div.innerText = 'Первым нажал игрок #' + playerId;
     contentEl.appendChild(div);
   });
+
+  socket.on('leaderboard:update', ({ leaderboard }) => {
+    renderLeaderboard(leaderboard);
+  });
+
+  function renderLeaderboard(leaderboard) {
+    leaderboardBody.innerHTML = '';
+    leaderboard.forEach((row) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + row.place + '</td><td>' + row.name + '</td><td>' + row.score + '</td>';
+      leaderboardBody.appendChild(tr);
+    });
+  }
 </script>
 <%- include('partials/footer') %>

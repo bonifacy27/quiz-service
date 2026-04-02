@@ -7,6 +7,7 @@
 
 <section class="card" id="player-question">
   <h2>Ожидание начала игры...</h2>
+  <div id="question-timer" class="notice" style="display:none"></div>
   <div id="player-content"></div>
 </section>
 
@@ -16,6 +17,8 @@
   const player = <%- JSON.stringify(player) %>;
   const game = <%- JSON.stringify(game) %>;
   const root = document.getElementById('player-content');
+  const timerBox = document.getElementById('question-timer');
+  let timerInterval = null;
 
   socket.emit('player:join', {
     gameCode: game.code,
@@ -34,9 +37,43 @@
     root.appendChild(div);
   });
 
+  function stopTimer() {
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+  }
+
+  function startTimer(timerEndsAt) {
+    stopTimer();
+
+    if (!timerEndsAt) {
+      timerBox.style.display = 'none';
+      timerBox.innerText = '';
+      return;
+    }
+
+    timerBox.style.display = 'block';
+
+    function tick() {
+      const msLeft = timerEndsAt - Date.now();
+      const secLeft = Math.max(0, Math.ceil(msLeft / 1000));
+      timerBox.innerText = 'Осталось времени: ' + secLeft + ' сек.';
+
+      if (msLeft <= 0) {
+        stopTimer();
+        timerBox.innerText = 'Время вышло';
+      }
+    }
+
+    tick();
+    timerInterval = setInterval(tick, 250);
+  }
+
   function renderQuestion(question) {
     root.innerHTML = '';
     document.querySelector('#player-question h2').innerText = question.title;
+    startTimer(question.timerEndsAt);
 
     if (question.type === 'abcd') {
       question.payload.options.forEach((option, index) => {

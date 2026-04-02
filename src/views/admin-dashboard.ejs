@@ -16,8 +16,12 @@
           код <code><%= game.code %></code> —
           статус <%= game.status %> —
           <a href="/admin/games/<%= game.id %>/control">Управление</a> |
+          <a href="/admin/games/<%= game.id %>/edit">Редактировать</a> |
           <a href="/game/<%= game.code %>">Экран</a> |
           <a href="/join/<%= game.code %>">Вход игроков</a>
+          <form method="post" action="/admin/games/<%= game.id %>/delete" style="display:inline" onsubmit="return confirm('Удалить игру? Это действие нельзя отменить.');">
+            <button type="submit" class="button-link">Удалить</button>
+          </form>
         </li>
       <% }) %>
     </ul>

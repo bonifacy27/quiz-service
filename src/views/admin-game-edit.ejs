@@ -1,0 +1,17 @@
+<%- include('partials/header', { title: 'Редактирование игры', user }) %>
+<section class="card narrow">
+  <h1>Редактировать игру</h1>
+  <p>Код: <code><%= game.code %></code></p>
+
+  <% if (error) { %>
+    <div class="error"><%= error %></div>
+  <% } %>
+
+  <form method="post" action="/admin/games/<%= game.id %>/edit">
+    <label>Название игры</label>
+    <input type="text" name="title" maxlength="100" value="<%= game.title %>" required />
+    <button class="button" type="submit">Сохранить</button>
+    <a class="button" href="/admin/dashboard">Отмена</a>
+  </form>
+</section>
+<%- include('partials/footer') %>

@@ -1,0 +1,29 @@
+<%- include('partials/header', { title: 'Редактировать вопрос', user }) %>
+<section class="card narrow">
+  <h1>Редактировать вопрос</h1>
+  <p>Игра: <strong><%= game.title %></strong></p>
+
+  <% if (error) { %>
+    <div class="error"><%= error %></div>
+  <% } %>
+
+  <form method="post" action="/admin/games/<%= game.id %>/questions/<%= question.id %>/edit">
+    <label>Тип вопроса</label>
+    <select name="type" required>
+      <option value="abcd" <%= question.type === 'abcd' ? 'selected' : '' %>>abcd</option>
+      <option value="text" <%= question.type === 'text' ? 'selected' : '' %>>text</option>
+      <option value="number" <%= question.type === 'number' ? 'selected' : '' %>>number</option>
+      <option value="buzz" <%= question.type === 'buzz' ? 'selected' : '' %>>buzz</option>
+    </select>
+
+    <label>Заголовок</label>
+    <input type="text" name="title" maxlength="200" value="<%= question.title %>" required />
+
+    <label>payload_json</label>
+    <textarea name="payload_json" rows="12" required><%= payloadText %></textarea>
+
+    <button class="button" type="submit">Сохранить</button>
+    <a class="button" href="/admin/games/<%= game.id %>/control">Отмена</a>
+  </form>
+</section>
+<%- include('partials/footer') %>

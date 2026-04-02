@@ -87,7 +87,9 @@ label {
   margin-bottom: 6px;
 }
 
-input {
+input,
+select,
+textarea {
   width: 100%;
   box-sizing: border-box;
   padding: 10px 12px;
@@ -127,4 +129,14 @@ input {
   border-radius: 8px;
   min-height: 120px;
   font-family: monospace;
+}
+
+.button-link {
+  border: none;
+  background: none;
+  color: #b91c1c;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  margin-left: 8px;
 }

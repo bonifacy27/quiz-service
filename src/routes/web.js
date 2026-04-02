@@ -13,6 +13,72 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+function buildQuestionPayload(type, body) {
+  const timeLimitSec = Number(body.timeLimitSec || 0);
+
+  if (type === "abcd") {
+    const options = [
+      String(body.option1 || "").trim(),
+      String(body.option2 || "").trim(),
+      String(body.option3 || "").trim(),
+      String(body.option4 || "").trim(),
+    ];
+
+    if (options.some((opt) => !opt)) {
+      return { error: "Для типа abcd заполните 4 варианта ответа" };
+    }
+
+    const correct = Number(body.correct);
+    if (![0, 1, 2, 3].includes(correct)) {
+      return { error: "Для типа abcd выберите правильный ответ" };
+    }
+
+    return {
+      payload: {
+        options,
+        correct,
+        timeLimitSec: timeLimitSec > 0 ? timeLimitSec : 15,
+      },
+    };
+  }
+
+  if (type === "text") {
+    const correctText = String(body.correctText || "").trim();
+    if (!correctText) return { error: "Для типа text заполните правильный текстовый ответ" };
+
+    return {
+      payload: {
+        correctText,
+        timeLimitSec: timeLimitSec > 0 ? timeLimitSec : 30,
+      },
+    };
+  }
+
+  if (type === "number") {
+    const correctNumber = Number(body.correctNumber);
+    if (!Number.isFinite(correctNumber)) {
+      return { error: "Для типа number укажите корректное число" };
+    }
+
+    return {
+      payload: {
+        correctNumber,
+        timeLimitSec: timeLimitSec > 0 ? timeLimitSec : 30,
+      },
+    };
+  }
+
+  if (type === "buzz") {
+    return {
+      payload: {
+        timeLimitSec: timeLimitSec > 0 ? timeLimitSec : 10,
+      },
+    };
+  }
+
+  return { error: "Неподдерживаемый тип вопроса" };
+}
+
 router.get("/", async (req, res) => {
   const games = await all("SELECT * FROM games ORDER BY id DESC LIMIT 10");
   res.render("index", { games, user: req.session.user || null });
@@ -97,6 +163,121 @@ router.get("/admin/dashboard", requireAdmin, async (req, res) => {
 
 router.get("/admin/games/new", requireAdmin, (req, res) => {
   res.render("admin-game-new", { user: req.session.user });
+});
+
+router.get("/admin/games/:id/edit", requireAdmin, async (req, res) => {
+  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
+
+  res.render("admin-game-edit", {
+    game,
+    user: req.session.user,
+    error: null,
+  });
+});
+
+router.post("/admin/games/:id/edit", requireAdmin, async (req, res) => {
+  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
+
+  const title = String(req.body.title || "").trim().slice(0, 100);
+  if (!title) {
+    return res.status(400).render("admin-game-edit", {
+      game,
+      user: req.session.user,
+      error: "Введите название игры",
+    });
+  }
+
+  await run("UPDATE games SET title = ? WHERE id = ?", [title, game.id]);
+  res.redirect("/admin/dashboard");
+});
+
+router.post("/admin/games/:id/delete", requireAdmin, async (req, res) => {
+  const game = await get("SELECT id FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
+
+  await run("DELETE FROM player_answers WHERE game_id = ?", [game.id]);
+  await run("DELETE FROM players WHERE game_id = ?", [game.id]);
+  await run("DELETE FROM questions WHERE game_id = ?", [game.id]);
+  await run("DELETE FROM games WHERE id = ?", [game.id]);
+
+  res.redirect("/admin/dashboard");
+});
+
+router.post("/admin/games/:id/questions", requireAdmin, async (req, res) => {
+  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
+
+  const type = String(req.body.type || "").trim();
+  const title = String(req.body.title || "").trim().slice(0, 200);
+  if (!title) return res.status(400).render("error", { message: "Введите заголовок вопроса" });
+
+  const { payload, error } = buildQuestionPayload(type, req.body);
+  if (error) return res.status(400).render("error", { message: error });
+
+  const order = await get("SELECT COALESCE(MAX(sort_order), 0) AS maxOrder FROM questions WHERE game_id = ?", [game.id]);
+  await run(
+    "INSERT INTO questions (game_id, type, title, payload_json, sort_order) VALUES (?, ?, ?, ?, ?)",
+    [game.id, type, title, JSON.stringify(payload), Number(order.maxOrder || 0) + 1]
+  );
+
+  res.redirect(`/admin/games/${game.id}/control`);
+});
+
+router.get("/admin/games/:id/questions/:questionId/edit", requireAdmin, async (req, res) => {
+  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
+
+  const question = await get("SELECT * FROM questions WHERE id = ? AND game_id = ?", [req.params.questionId, game.id]);
+  if (!question) return res.status(404).render("error", { message: "Вопрос не найден" });
+
+  let payload = {};
+  try {
+    payload = JSON.parse(question.payload_json);
+  } catch (_) {
+    payload = {};
+  }
+
+  res.render("admin-question-edit", { game, question, payload, user: req.session.user, error: null });
+});
+
+router.post("/admin/games/:id/questions/:questionId/edit", requireAdmin, async (req, res) => {
+  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
+
+  const question = await get("SELECT * FROM questions WHERE id = ? AND game_id = ?", [req.params.questionId, game.id]);
+  if (!question) return res.status(404).render("error", { message: "Вопрос не найден" });
+
+  const type = String(req.body.type || "").trim();
+  const title = String(req.body.title || "").trim().slice(0, 200);
+  if (!title) return res.status(400).render("error", { message: "Введите заголовок вопроса" });
+
+  const { payload, error } = buildQuestionPayload(type, req.body);
+  if (error) return res.status(400).render("error", { message: error });
+
+  await run("UPDATE questions SET type = ?, title = ?, payload_json = ? WHERE id = ? AND game_id = ?", [
+    type,
+    title,
+    JSON.stringify(payload),
+    question.id,
+    game.id,
+  ]);
+
+  res.redirect(`/admin/games/${game.id}/control`);
+});
+
+router.post("/admin/games/:id/questions/:questionId/delete", requireAdmin, async (req, res) => {
+  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
+
+  const question = await get("SELECT id FROM questions WHERE id = ? AND game_id = ?", [req.params.questionId, game.id]);
+  if (!question) return res.status(404).render("error", { message: "Вопрос не найден" });
+
+  await run("DELETE FROM player_answers WHERE question_id = ?", [question.id]);
+  await run("DELETE FROM questions WHERE id = ? AND game_id = ?", [question.id, game.id]);
+
+  res.redirect(`/admin/games/${game.id}/control`);
 });
 
 router.get("/admin/games/:id/control", requireAdmin, async (req, res) => {

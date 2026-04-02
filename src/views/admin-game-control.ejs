@@ -13,13 +13,71 @@
 </section>
 
 <section class="card">
+  <h2>Добавить вопрос</h2>
+  <form method="post" action="/admin/games/<%= game.id %>/questions" id="question-form">
+    <label>Тип вопроса</label>
+    <select name="type" id="question-type" required>
+      <option value="abcd">abcd</option>
+      <option value="text">text</option>
+      <option value="number">number</option>
+      <option value="buzz">buzz</option>
+    </select>
+
+    <label>Заголовок</label>
+    <input type="text" name="title" maxlength="200" required />
+
+    <div data-type-block="abcd">
+      <label>Вариант 1</label>
+      <input type="text" name="option1" />
+      <label>Вариант 2</label>
+      <input type="text" name="option2" />
+      <label>Вариант 3</label>
+      <input type="text" name="option3" />
+      <label>Вариант 4</label>
+      <input type="text" name="option4" />
+      <label>Правильный вариант</label>
+      <select name="correct">
+        <option value="0">1</option>
+        <option value="1">2</option>
+        <option value="2">3</option>
+        <option value="3">4</option>
+      </select>
+    </div>
+
+    <div data-type-block="text" style="display:none">
+      <label>Правильный текстовый ответ</label>
+      <input type="text" name="correctText" />
+    </div>
+
+    <div data-type-block="number" style="display:none">
+      <label>Правильный числовой ответ</label>
+      <input type="number" name="correctNumber" step="any" />
+    </div>
+
+    <label>Лимит времени (секунды)</label>
+    <input type="number" name="timeLimitSec" min="1" value="15" />
+
+    <button class="button" type="submit">Добавить вопрос</button>
+  </form>
+</section>
+
+<section class="card">
   <h2>Вопросы</h2>
   <% if (!questions.length) { %>
     <p>Вопросов нет</p>
   <% } else { %>
     <ol>
       <% questions.forEach(q => { %>
-        <li><strong>[<%= q.type %>]</strong> <%= q.title %></li>
+        <li>
+          <strong>[<%= q.type %>]</strong> <%= q.title %>
+          <br>
+          <small><code><%= q.payload_json %></code></small>
+          <br>
+          <a href="/admin/games/<%= game.id %>/questions/<%= q.id %>/edit">Редактировать</a>
+          <form method="post" action="/admin/games/<%= game.id %>/questions/<%= q.id %>/delete" style="display:inline" onsubmit="return confirm('Удалить вопрос? Это действие нельзя отменить.');">
+            <button type="submit" class="button-link">Удалить</button>
+          </form>
+        </li>
       <% }) %>
     </ol>
   <% } %>
@@ -36,6 +94,7 @@
   const game = <%- JSON.stringify(game) %>;
   const result = document.getElementById('control-result');
   const log = document.getElementById('log');
+  const typeSelect = document.getElementById('question-type');
 
   socket.emit('host:join', { gameCode: game.code });
 
@@ -44,6 +103,16 @@
     line.innerText = new Date().toLocaleTimeString() + ' — ' + text;
     log.prepend(line);
   }
+
+  function updateQuestionTypeForm() {
+    const currentType = typeSelect.value;
+    document.querySelectorAll('[data-type-block]').forEach((el) => {
+      el.style.display = el.dataset.typeBlock === currentType ? 'block' : 'none';
+    });
+  }
+
+  typeSelect.addEventListener('change', updateQuestionTypeForm);
+  updateQuestionTypeForm();
 
   document.getElementById('start-game').onclick = async () => {
     const response = await fetch('/api/admin/games/<%= game.id %>/start', {

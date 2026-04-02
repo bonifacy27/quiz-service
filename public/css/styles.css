@@ -128,3 +128,13 @@ input {
   min-height: 120px;
   font-family: monospace;
 }
+
+.button-link {
+  border: none;
+  background: none;
+  color: #b91c1c;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  margin-left: 8px;
+}

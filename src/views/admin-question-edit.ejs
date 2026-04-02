@@ -7,9 +7,9 @@
     <div class="error"><%= error %></div>
   <% } %>
 
-  <form method="post" action="/admin/games/<%= game.id %>/questions/<%= question.id %>/edit" id="question-edit-form">
+  <form method="post" action="/admin/games/<%= game.id %>/questions/<%= question.id %>/edit">
     <label>Тип вопроса</label>
-    <select name="type" id="question-type" required>
+    <select name="type" required>
       <option value="abcd" <%= question.type === 'abcd' ? 'selected' : '' %>>abcd</option>
       <option value="text" <%= question.type === 'text' ? 'selected' : '' %>>text</option>
       <option value="number" <%= question.type === 'number' ? 'selected' : '' %>>number</option>
@@ -19,53 +19,11 @@
     <label>Заголовок</label>
     <input type="text" name="title" maxlength="200" value="<%= question.title %>" required />
 
-    <div data-type-block="abcd" style="display:none">
-      <label>Вариант 1</label>
-      <input type="text" name="option1" value="<%= payload.options && payload.options[0] ? payload.options[0] : '' %>" />
-      <label>Вариант 2</label>
-      <input type="text" name="option2" value="<%= payload.options && payload.options[1] ? payload.options[1] : '' %>" />
-      <label>Вариант 3</label>
-      <input type="text" name="option3" value="<%= payload.options && payload.options[2] ? payload.options[2] : '' %>" />
-      <label>Вариант 4</label>
-      <input type="text" name="option4" value="<%= payload.options && payload.options[3] ? payload.options[3] : '' %>" />
-      <label>Правильный вариант</label>
-      <select name="correct">
-        <option value="0" <%= payload.correct === 0 ? 'selected' : '' %>>1</option>
-        <option value="1" <%= payload.correct === 1 ? 'selected' : '' %>>2</option>
-        <option value="2" <%= payload.correct === 2 ? 'selected' : '' %>>3</option>
-        <option value="3" <%= payload.correct === 3 ? 'selected' : '' %>>4</option>
-      </select>
-    </div>
-
-    <div data-type-block="text" style="display:none">
-      <label>Правильный текстовый ответ</label>
-      <input type="text" name="correctText" value="<%= payload.correctText || '' %>" />
-    </div>
-
-    <div data-type-block="number" style="display:none">
-      <label>Правильный числовой ответ</label>
-      <input type="number" name="correctNumber" step="any" value="<%= payload.correctNumber !== undefined ? payload.correctNumber : '' %>" />
-    </div>
-
-    <label>Лимит времени (секунды)</label>
-    <input type="number" name="timeLimitSec" min="1" value="<%= payload.timeLimitSec || 15 %>" />
+    <label>payload_json</label>
+    <textarea name="payload_json" rows="12" required><%= payloadText %></textarea>
 
     <button class="button" type="submit">Сохранить</button>
     <a class="button" href="/admin/games/<%= game.id %>/control">Отмена</a>
   </form>
 </section>
-
-<script>
-  const typeSelect = document.getElementById('question-type');
-
-  function updateQuestionTypeForm() {
-    const currentType = typeSelect.value;
-    document.querySelectorAll('[data-type-block]').forEach((el) => {
-      el.style.display = el.dataset.typeBlock === currentType ? 'block' : 'none';
-    });
-  }
-
-  typeSelect.addEventListener('change', updateQuestionTypeForm);
-  updateQuestionTypeForm();
-</script>
 <%- include('partials/footer') %>

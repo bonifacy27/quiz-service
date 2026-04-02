@@ -239,7 +239,14 @@ router.get("/admin/games/:id/questions/:questionId/edit", requireAdmin, async (r
     payload = {};
   }
 
-  res.render("admin-question-edit", { game, question, payload, user: req.session.user, error: null });
+  res.render("admin-question-edit", {
+    game,
+    question,
+    payload,
+    payloadText: JSON.stringify(payload, null, 2),
+    user: req.session.user,
+    error: null,
+  });
 });
 
 router.post("/admin/games/:id/questions/:questionId/edit", requireAdmin, async (req, res) => {
@@ -251,10 +258,43 @@ router.post("/admin/games/:id/questions/:questionId/edit", requireAdmin, async (
 
   const type = String(req.body.type || "").trim();
   const title = String(req.body.title || "").trim().slice(0, 200);
-  if (!title) return res.status(400).render("error", { message: "Введите заголовок вопроса" });
+  const payloadText = String(req.body.payload_json || "").trim();
 
-  const { payload, error } = buildQuestionPayload(type, req.body);
-  if (error) return res.status(400).render("error", { message: error });
+  if (!title) {
+    return res.status(400).render("admin-question-edit", {
+      game,
+      question: { ...question, title, type },
+      payload: {},
+      payloadText,
+      user: req.session.user,
+      error: "Введите заголовок вопроса",
+    });
+  }
+
+  let payload;
+  try {
+    payload = JSON.parse(payloadText);
+  } catch (_) {
+    return res.status(400).render("admin-question-edit", {
+      game,
+      question: { ...question, title, type },
+      payload: {},
+      payloadText,
+      user: req.session.user,
+      error: "payload_json должен быть корректным JSON",
+    });
+  }
+
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return res.status(400).render("admin-question-edit", {
+      game,
+      question: { ...question, title, type },
+      payload: {},
+      payloadText,
+      user: req.session.user,
+      error: "payload_json должен быть JSON-объектом",
+    });
+  }
 
   await run("UPDATE questions SET type = ?, title = ?, payload_json = ? WHERE id = ? AND game_id = ?", [
     type,

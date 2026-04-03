@@ -24,6 +24,10 @@ body {
   gap: 16px;
 }
 
+.wrap {
+  flex-wrap: wrap;
+}
+
 .gap {
   gap: 24px;
 }
@@ -62,6 +66,15 @@ body {
   text-decoration: none;
   margin-top: 10px;
   margin-right: 10px;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.button-danger {
+  background: #b91c1c;
 }
 
 .option {
@@ -120,6 +133,29 @@ textarea {
   background: #0f172a;
   color: white;
   border-radius: 12px;
+}
+
+.game-screen-box {
+  min-width: 320px;
+}
+
+.screen-meta {
+  display: flex;
+  gap: 16px;
+  margin: 12px 0 16px;
+  flex-wrap: wrap;
+}
+
+.options-list {
+  margin: 0;
+  padding-left: 22px;
+  line-height: 1.7;
+}
+
+.status-grid {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
 }
 
 .log {

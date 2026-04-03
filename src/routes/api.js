@@ -1,13 +1,64 @@
 const express = require("express");
 const crypto = require("crypto");
 const { run, get, all } = require("../db");
-const { ensureGame, resetQuestionState } = require("../services/gameState");
+const { ensureGame, resetQuestionState, clearQuestionTimer } = require("../services/gameState");
 
 const router = express.Router();
 
 function requireAdmin(req, res, next) {
   if (!req.session.user) return res.status(401).json({ error: "Unauthorized" });
   next();
+}
+
+function buildQuestionPublicData(question, liveGame) {
+  return {
+    id: question.id,
+    type: question.type,
+    title: question.title,
+    payload: liveGame.currentQuestion ? liveGame.currentQuestion.payload : {},
+    status: liveGame.currentQuestionStatus,
+    timerEndsAt: liveGame.timerEndsAt,
+  };
+}
+
+function emitQuestionState(io, gameCode, question, liveGame) {
+  io.to(`game:${gameCode}`).emit("question:show", buildQuestionPublicData(question, liveGame));
+}
+
+function closeCurrentQuestion(io, gameCode, reason = "manual") {
+  const liveGame = ensureGame(gameCode);
+  if (!liveGame.currentQuestion || liveGame.currentQuestionStatus === "closed") {
+    return false;
+  }
+
+  clearQuestionTimer(gameCode);
+  liveGame.currentQuestionStatus = "closed";
+  liveGame.timerEndsAt = null;
+
+  io.to(`game:${gameCode}`).emit("question:closed", {
+    questionId: liveGame.currentQuestion.id,
+    reason,
+  });
+
+  io.to(`host:${gameCode}`).emit("question:status", {
+    questionId: liveGame.currentQuestion.id,
+    status: "closed",
+    reason,
+  });
+
+  return true;
+}
+
+function scheduleQuestionClose(io, gameCode) {
+  const liveGame = ensureGame(gameCode);
+  clearQuestionTimer(gameCode);
+
+  if (!liveGame.timerEndsAt || liveGame.currentQuestionStatus !== "active") return;
+
+  const delayMs = Math.max(0, liveGame.timerEndsAt - Date.now());
+  liveGame.timerTimeout = setTimeout(() => {
+    closeCurrentQuestion(io, gameCode, "timer");
+  }, delayMs);
 }
 
 router.post("/admin/games", requireAdmin, async (req, res) => {
@@ -69,6 +120,9 @@ router.post("/admin/games/:id/next-question", requireAdmin, async (req, res) => 
   const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
   if (!game) return res.status(404).json({ error: "Game not found" });
 
+  const io = req.app.get("io");
+  closeCurrentQuestion(io, game.code, "next_question");
+
   const questions = await all(
     "SELECT * FROM questions WHERE game_id = ? ORDER BY sort_order ASC, id ASC",
     [game.id]
@@ -79,7 +133,11 @@ router.post("/admin/games/:id/next-question", requireAdmin, async (req, res) => 
   const question = questions[liveGame.currentQuestionIndex];
 
   if (!question) {
-    req.app.get("io").to(`game:${game.code}`).emit("game:finished");
+    liveGame.currentQuestion = null;
+    clearQuestionTimer(game.code);
+    liveGame.currentQuestionStatus = "closed";
+
+    io.to(`game:${game.code}`).emit("game:finished");
     return res.json({ ok: true, finished: true });
   }
 
@@ -91,19 +149,29 @@ router.post("/admin/games/:id/next-question", requireAdmin, async (req, res) => 
     title: question.title,
     payload,
   };
+  liveGame.currentQuestionStatus = "active";
   liveGame.timerEndsAt = payload.timeLimitSec
     ? Date.now() + payload.timeLimitSec * 1000
     : null;
 
-  req.app.get("io").to(`game:${game.code}`).emit("question:show", {
-    id: question.id,
-    type: question.type,
-    title: question.title,
-    payload,
-    timerEndsAt: liveGame.timerEndsAt,
+  emitQuestionState(io, game.code, question, liveGame);
+  io.to(`host:${game.code}`).emit("question:status", {
+    questionId: question.id,
+    status: liveGame.currentQuestionStatus,
+    reason: "started",
   });
 
+  scheduleQuestionClose(io, game.code);
+
   res.json({ ok: true, questionId: question.id });
+});
+
+router.post("/admin/games/:id/close-question", requireAdmin, async (req, res) => {
+  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).json({ error: "Game not found" });
+
+  const closed = closeCurrentQuestion(req.app.get("io"), game.code, "host");
+  return res.json({ ok: true, closed });
 });
 
 module.exports = router;

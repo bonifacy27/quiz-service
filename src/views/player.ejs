@@ -6,7 +6,8 @@
 </section>
 
 <section class="card" id="player-question">
-  <h2>Ожидание начала игры...</h2>
+  <h2 id="question-title">Ожидание начала игры...</h2>
+  <div id="question-status" class="notice">Нет активного вопроса</div>
   <div id="question-timer" class="notice" style="display:none"></div>
   <div id="answer-result" class="notice" style="display:none"></div>
   <div id="player-content"></div>
@@ -42,8 +43,12 @@
   const root = document.getElementById('player-content');
   const timerBox = document.getElementById('question-timer');
   const answerResultBox = document.getElementById('answer-result');
+  const questionStatusBox = document.getElementById('question-status');
+  const questionTitle = document.getElementById('question-title');
   const leaderboardBody = document.getElementById('leaderboard-body');
   let timerInterval = null;
+  let answeredQuestionIds = new Set();
+  let currentQuestion = null;
 
   socket.emit('player:join', {
     gameCode: game.code,
@@ -52,26 +57,67 @@
   });
 
   socket.on('question:show', (question) => {
+    currentQuestion = question;
     renderQuestion(question);
+  });
+
+  socket.on('question:closed', ({ questionId, reason }) => {
+    if (currentQuestion && currentQuestion.id === questionId) {
+      currentQuestion.status = 'closed';
+    }
+    lockInputs();
+    setQuestionStatus('closed', reason);
   });
 
   socket.on('buzz:winner', ({ playerId }) => {
     const div = document.createElement('div');
     div.className = 'notice';
-    div.innerText = playerId === player.id ? 'Вы нажали первым!' : 'Кто-то уже нажал первым';
+    div.innerText = playerId === player.id ? 'Вы нажали первым! Ответ принят.' : 'Кто-то уже нажал первым';
     root.appendChild(div);
+    lockInputs();
   });
 
-  socket.on('answer:result', ({ isCorrect, scoreDelta }) => {
+  socket.on('answer:result', ({ questionId, isCorrect, scoreDelta }) => {
+    answeredQuestionIds.add(questionId);
     answerResultBox.style.display = 'block';
     answerResultBox.innerText = isCorrect
-      ? 'Верно! +' + scoreDelta + ' очков'
-      : 'Неверно. +' + scoreDelta + ' очков';
+      ? 'Ответ принят: верно! +' + scoreDelta + ' очков. Повторный ответ невозможен.'
+      : 'Ответ принят: неверно. +' + scoreDelta + ' очков. Повторный ответ невозможен.';
+    lockInputs();
+  });
+
+  socket.on('answer:rejected', ({ reason, message }) => {
+    answerResultBox.style.display = 'block';
+    if (reason === 'already_answered') {
+      answerResultBox.innerText = 'Повторный ответ невозможен.';
+    } else if (reason === 'question_closed') {
+      answerResultBox.innerText = 'Вопрос завершен. Ответы больше не принимаются.';
+      setQuestionStatus('closed');
+    } else {
+      answerResultBox.innerText = message || 'Ответ не принят';
+    }
   });
 
   socket.on('leaderboard:update', ({ leaderboard }) => {
     renderLeaderboard(leaderboard);
   });
+
+  function setQuestionStatus(status, reason) {
+    if (status === 'active') {
+      questionStatusBox.innerText = 'Прием ответов открыт';
+    } else if (status === 'closed') {
+      questionStatusBox.innerText = 'Вопрос завершен. Прием ответов закрыт.' + (reason ? ' (' + reason + ')' : '');
+      stopTimer();
+    } else {
+      questionStatusBox.innerText = 'Нет активного вопроса';
+    }
+  }
+
+  function lockInputs() {
+    root.querySelectorAll('button, input').forEach((el) => {
+      el.disabled = true;
+    });
+  }
 
   function stopTimer() {
     if (timerInterval) {
@@ -106,25 +152,35 @@
     timerInterval = setInterval(tick, 250);
   }
 
+  function canSubmit(question) {
+    if (!question || question.status !== 'active') return false;
+    return !answeredQuestionIds.has(question.id);
+  }
+
   function renderQuestion(question) {
     root.innerHTML = '';
     answerResultBox.style.display = 'none';
     answerResultBox.innerText = '';
-    document.querySelector('#player-question h2').innerText = question.title;
+    questionTitle.innerText = question.title;
+    setQuestionStatus(question.status || 'active');
     startTimer(question.timerEndsAt);
+
+    const submitAllowed = canSubmit(question);
 
     if (question.type === 'abcd') {
       question.payload.options.forEach((option, index) => {
         const btn = document.createElement('button');
         btn.className = 'button option';
         btn.innerText = option;
+        btn.disabled = !submitAllowed;
         btn.onclick = () => {
+          if (!canSubmit(question)) return;
           socket.emit('answer:submit', {
             gameCode: game.code,
             playerId: player.id,
             answer: { optionIndex: index }
           });
-          btn.disabled = true;
+          lockInputs();
         };
         root.appendChild(btn);
       });
@@ -132,15 +188,19 @@
       const input = document.createElement('input');
       input.type = 'text';
       input.placeholder = 'Ваш ответ';
+      input.disabled = !submitAllowed;
       const btn = document.createElement('button');
       btn.className = 'button';
       btn.innerText = 'Ответить';
+      btn.disabled = !submitAllowed;
       btn.onclick = () => {
+        if (!canSubmit(question)) return;
         socket.emit('answer:submit', {
           gameCode: game.code,
           playerId: player.id,
           answer: { text: input.value }
         });
+        lockInputs();
       };
       root.appendChild(input);
       root.appendChild(btn);
@@ -148,15 +208,19 @@
       const input = document.createElement('input');
       input.type = 'number';
       input.placeholder = 'Введите число';
+      input.disabled = !submitAllowed;
       const btn = document.createElement('button');
       btn.className = 'button';
       btn.innerText = 'Ответить';
+      btn.disabled = !submitAllowed;
       btn.onclick = () => {
+        if (!canSubmit(question)) return;
         socket.emit('answer:submit', {
           gameCode: game.code,
           playerId: player.id,
           answer: { number: Number(input.value) }
         });
+        lockInputs();
       };
       root.appendChild(input);
       root.appendChild(btn);
@@ -164,13 +228,23 @@
       const btn = document.createElement('button');
       btn.className = 'button big-button';
       btn.innerText = 'ЖМИ!';
+      btn.disabled = !submitAllowed;
       btn.onclick = () => {
+        if (!canSubmit(question)) return;
         socket.emit('buzz:press', {
           gameCode: game.code,
           playerId: player.id
         });
+        lockInputs();
       };
       root.appendChild(btn);
+    }
+
+    if (!submitAllowed) {
+      answerResultBox.style.display = 'block';
+      answerResultBox.innerText = question.status === 'closed'
+        ? 'Вопрос завершен. Ответы больше не принимаются.'
+        : 'Ответ уже отправлен. Повторный ответ невозможен.';
     }
   }
 

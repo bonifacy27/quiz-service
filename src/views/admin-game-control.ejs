@@ -8,7 +8,12 @@
 
 <section class="card">
   <button class="button" id="start-game">Запустить игру</button>
-  <button class="button" id="next-question">Следующий вопрос</button>
+  <button class="button" id="next-question">Открыть следующий вопрос</button>
+  <button class="button button-danger" id="close-question">Завершить текущий вопрос</button>
+  <div class="status-grid">
+    <div><strong>Статус вопроса:</strong> <span id="question-status">Нет активного вопроса</span></div>
+    <div><strong>Таймер:</strong> <span id="question-timer">—</span></div>
+  </div>
   <div id="control-result"></div>
 </section>
 
@@ -118,6 +123,9 @@
   const log = document.getElementById('log');
   const leaderboardBody = document.getElementById('leaderboard-body');
   const typeSelect = document.getElementById('question-type');
+  const questionStatusEl = document.getElementById('question-status');
+  const questionTimerEl = document.getElementById('question-timer');
+  let timerInterval = null;
 
   socket.emit('host:join', { gameCode: game.code });
 
@@ -132,6 +140,45 @@
     document.querySelectorAll('[data-type-block]').forEach((el) => {
       el.style.display = el.dataset.typeBlock === currentType ? 'block' : 'none';
     });
+  }
+
+  function stopTimer() {
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+    questionTimerEl.innerText = '—';
+  }
+
+  function startTimer(timerEndsAt) {
+    stopTimer();
+    if (!timerEndsAt) return;
+
+    function tick() {
+      const secLeft = Math.max(0, Math.ceil((timerEndsAt - Date.now()) / 1000));
+      questionTimerEl.innerText = secLeft + ' сек';
+      if (secLeft <= 0) {
+        stopTimer();
+      }
+    }
+
+    tick();
+    timerInterval = setInterval(tick, 250);
+  }
+
+  function setQuestionStatus(status, reason) {
+    if (status === 'active') {
+      questionStatusEl.innerText = 'Активный (прием ответов открыт)';
+    } else if (status === 'closed') {
+      questionStatusEl.innerText = 'Завершен (прием ответов закрыт)';
+      if (reason) {
+        appendLog('Вопрос завершен: ' + reason);
+      }
+      stopTimer();
+    } else {
+      questionStatusEl.innerText = 'Нет активного вопроса';
+      stopTimer();
+    }
   }
 
   typeSelect.addEventListener('change', updateQuestionTypeForm);
@@ -150,7 +197,15 @@
       method: 'POST'
     });
     const data = await response.json();
-    result.innerText = data.finished ? 'Игра завершена' : 'Следующий вопрос отправлен';
+    result.innerText = data.finished ? 'Игра завершена' : 'Следующий вопрос открыт';
+  };
+
+  document.getElementById('close-question').onclick = async () => {
+    const response = await fetch('/api/admin/games/<%= game.id %>/close-question', {
+      method: 'POST'
+    });
+    const data = await response.json();
+    result.innerText = data.closed ? 'Текущий вопрос завершен досрочно' : 'Активного вопроса нет';
   };
 
   socket.on('player:list', ({ players }) => {
@@ -159,6 +214,21 @@
 
   socket.on('answer:received', ({ playerId, answer }) => {
     appendLog('Ответ от игрока #' + playerId + ': ' + JSON.stringify(answer));
+  });
+
+  socket.on('question:show', (question) => {
+    setQuestionStatus(question.status || 'active');
+    startTimer(question.timerEndsAt);
+    appendLog('Открыт вопрос #' + question.id + ': ' + question.title);
+  });
+
+  socket.on('question:status', ({ status, reason }) => {
+    setQuestionStatus(status, reason);
+  });
+
+  socket.on('question:closed', ({ questionId, reason }) => {
+    setQuestionStatus('closed', reason);
+    appendLog('Вопрос #' + questionId + ' закрыт');
   });
 
   socket.on('leaderboard:update', ({ leaderboard }) => {

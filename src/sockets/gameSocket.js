@@ -31,12 +31,27 @@ async function emitLeaderboardToSocket(socket, gameCode) {
   socket.emit("leaderboard:update", { leaderboard });
 }
 
+function emitCurrentQuestion(socket, gameCode) {
+  const liveGame = ensureGame(gameCode);
+  if (!liveGame.currentQuestion) return;
+
+  socket.emit("question:show", {
+    id: liveGame.currentQuestion.id,
+    type: liveGame.currentQuestion.type,
+    title: liveGame.currentQuestion.title,
+    payload: liveGame.currentQuestion.payload,
+    status: liveGame.currentQuestionStatus,
+    timerEndsAt: liveGame.timerEndsAt,
+  });
+}
+
 function registerGameSocket(io) {
   io.on("connection", (socket) => {
     socket.on("host:join", async ({ gameCode }) => {
       socket.join(`game:${gameCode}`);
       socket.join(`host:${gameCode}`);
       await emitLeaderboardToSocket(socket, gameCode);
+      emitCurrentQuestion(socket, gameCode);
       socket.emit("host:joined", { ok: true });
     });
 
@@ -44,6 +59,7 @@ function registerGameSocket(io) {
       socket.join(`game:${gameCode}`);
       socket.join(`screen:${gameCode}`);
       await emitLeaderboardToSocket(socket, gameCode);
+      emitCurrentQuestion(socket, gameCode);
       socket.emit("screen:joined", { ok: true });
     });
 
@@ -76,17 +92,28 @@ function registerGameSocket(io) {
       await emitLeaderboard(io, gameCode, player.game_id);
 
       socket.emit("player:joined", { ok: true, player: { id: player.id, name: player.name } });
+      emitCurrentQuestion(socket, gameCode);
     });
 
     socket.on("answer:submit", async ({ gameCode, playerId, answer }) => {
       const liveGame = ensureGame(gameCode);
-      if (!liveGame.currentQuestion) return;
+      if (!liveGame.currentQuestion) {
+        socket.emit("answer:rejected", { reason: "no_active_question", message: "Нет активного вопроса" });
+        return;
+      }
       if (liveGame.currentQuestion.type === "buzz") return;
+      if (liveGame.currentQuestionStatus !== "active") {
+        socket.emit("answer:rejected", { reason: "question_closed", message: "Вопрос уже завершен" });
+        return;
+      }
       if (!socket.data.playerId || socket.data.playerId !== playerId) return;
       if (socket.data.gameCode !== gameCode) return;
 
       const answerKey = `${liveGame.currentQuestion.id}:${playerId}`;
-      if (liveGame.answers.has(answerKey)) return;
+      if (liveGame.answers.has(answerKey)) {
+        socket.emit("answer:rejected", { reason: "already_answered", message: "Повторный ответ невозможен" });
+        return;
+      }
       liveGame.answers.set(answerKey, { pending: true });
 
       const game = await get("SELECT id FROM games WHERE code = ?", [gameCode]);
@@ -142,7 +169,14 @@ function registerGameSocket(io) {
     socket.on("buzz:press", async ({ gameCode, playerId }) => {
       const liveGame = ensureGame(gameCode);
       if (!liveGame.currentQuestion || liveGame.currentQuestion.type !== "buzz") return;
-      if (liveGame.buzzWinnerPlayerId) return;
+      if (liveGame.currentQuestionStatus !== "active") {
+        socket.emit("answer:rejected", { reason: "question_closed", message: "Вопрос уже завершен" });
+        return;
+      }
+      if (liveGame.buzzWinnerPlayerId) {
+        socket.emit("answer:rejected", { reason: "already_answered", message: "Кнопка уже нажата другим игроком" });
+        return;
+      }
       if (!socket.data.playerId || socket.data.playerId !== playerId) return;
       if (socket.data.gameCode !== gameCode) return;
 
@@ -174,6 +208,11 @@ function registerGameSocket(io) {
       io.to(`host:${gameCode}`).emit("answer:received", {
         playerId,
         answer: { buzz: true },
+        questionId: liveGame.currentQuestion.id,
+        isCorrect: true,
+        scoreDelta: 100,
+      });
+      io.to(`player:${playerId}`).emit("answer:result", {
         questionId: liveGame.currentQuestion.id,
         isCorrect: true,
         scoreDelta: 100,

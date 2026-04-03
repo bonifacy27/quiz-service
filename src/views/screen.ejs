@@ -1,14 +1,18 @@
 <%- include('partials/header', { title: 'Экран игры', user: null }) %>
 <section class="card">
-  <h1><%= game.title %></h1>
-  <p>Код игры: <code><%= game.code %></code></p>
-  <div class="row gap">
+  <div class="row gap wrap">
     <div>
+      <h1><%= game.title %></h1>
+      <p>Код игры: <code><%= game.code %></code></p>
       <img src="<%= qrDataUrl %>" alt="QR code" class="qr" />
       <p><a href="<%= qrUrl %>"><%= qrUrl %></a></p>
     </div>
-    <div class="screen-box">
+    <div class="screen-box game-screen-box">
       <h2 id="screen-title">Ожидание начала игры</h2>
+      <div class="screen-meta">
+        <span><strong>Статус:</strong> <span id="screen-status">Нет активного вопроса</span></span>
+        <span><strong>Таймер:</strong> <span id="screen-timer">—</span></span>
+      </div>
       <div id="screen-content"></div>
     </div>
   </div>
@@ -42,7 +46,10 @@
   const game = <%- JSON.stringify(game) %>;
   const titleEl = document.getElementById('screen-title');
   const contentEl = document.getElementById('screen-content');
+  const statusEl = document.getElementById('screen-status');
+  const timerEl = document.getElementById('screen-timer');
   const leaderboardBody = document.getElementById('leaderboard-body');
+  let timerInterval = null;
 
   socket.emit('screen:join', { gameCode: game.code });
 
@@ -52,21 +59,20 @@
 
   socket.on('question:show', (question) => {
     titleEl.innerText = question.title;
-    contentEl.innerHTML = '';
+    renderQuestion(question);
+    setStatus(question.status || 'active');
+    startTimer(question.timerEndsAt);
+  });
 
-    if (question.type === 'abcd') {
-      const ul = document.createElement('ul');
-      question.payload.options.forEach((option) => {
-        const li = document.createElement('li');
-        li.innerText = option;
-        ul.appendChild(li);
-      });
-      contentEl.appendChild(ul);
-    } else if (question.type === 'buzz') {
-      contentEl.innerHTML = '<div class="big-label">Кто быстрее нажмет первым?</div>';
-    } else {
-      contentEl.innerText = 'Вопрос отображен на экране';
-    }
+  socket.on('question:closed', () => {
+    setStatus('closed');
+    stopTimer();
+    timerEl.innerText = '0 сек';
+
+    const div = document.createElement('div');
+    div.className = 'notice';
+    div.innerText = 'Прием ответов завершен';
+    contentEl.appendChild(div);
   });
 
   socket.on('buzz:winner', ({ playerId }) => {
@@ -79,6 +85,62 @@
   socket.on('leaderboard:update', ({ leaderboard }) => {
     renderLeaderboard(leaderboard);
   });
+
+  function setStatus(status) {
+    if (status === 'active') {
+      statusEl.innerText = 'Активный (прием ответов открыт)';
+    } else if (status === 'closed') {
+      statusEl.innerText = 'Завершен (прием ответов закрыт)';
+    } else {
+      statusEl.innerText = 'Нет активного вопроса';
+    }
+  }
+
+  function stopTimer() {
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+  }
+
+  function startTimer(timerEndsAt) {
+    stopTimer();
+
+    if (!timerEndsAt) {
+      timerEl.innerText = '—';
+      return;
+    }
+
+    function tick() {
+      const secLeft = Math.max(0, Math.ceil((timerEndsAt - Date.now()) / 1000));
+      timerEl.innerText = secLeft + ' сек';
+      if (secLeft <= 0) {
+        stopTimer();
+      }
+    }
+
+    tick();
+    timerInterval = setInterval(tick, 250);
+  }
+
+  function renderQuestion(question) {
+    contentEl.innerHTML = '';
+
+    if (question.type === 'abcd' && question.payload && Array.isArray(question.payload.options)) {
+      const ul = document.createElement('ul');
+      ul.className = 'options-list';
+      question.payload.options.forEach((option) => {
+        const li = document.createElement('li');
+        li.innerText = option;
+        ul.appendChild(li);
+      });
+      contentEl.appendChild(ul);
+    } else if (question.type === 'buzz') {
+      contentEl.innerHTML = '<div class="big-label">Кто быстрее нажмет первым?</div>';
+    } else {
+      contentEl.innerText = 'Вопрос открыт. Игроки отвечают со своих устройств.';
+    }
+  }
 
   function renderLeaderboard(leaderboard) {
     leaderboardBody.innerHTML = '';

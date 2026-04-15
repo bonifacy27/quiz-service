@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const bcrypt = require("bcrypt");
 const config = require("./config");
-const { run, get } = require("./db");
+const { run, get, all } = require("./db");
 
 async function init() {
   fs.mkdirSync(path.dirname(config.dbPath), { recursive: true });
@@ -33,12 +33,40 @@ async function init() {
     CREATE TABLE IF NOT EXISTS questions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       game_id INTEGER NOT NULL,
+      round_id INTEGER,
+      category_id INTEGER,
       type TEXT NOT NULL,
       title TEXT NOT NULL,
       payload_json TEXT NOT NULL,
+      points INTEGER NOT NULL DEFAULT 100,
       sort_order INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(game_id) REFERENCES games(id)
+    )
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS rounds (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      game_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      settings_json TEXT NOT NULL DEFAULT '{}',
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(game_id) REFERENCES games(id)
+    )
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      game_id INTEGER NOT NULL,
+      round_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(game_id) REFERENCES games(id),
+      FOREIGN KEY(round_id) REFERENCES rounds(id)
     )
   `);
 
@@ -70,6 +98,22 @@ async function init() {
       FOREIGN KEY(player_id) REFERENCES players(id)
     )
   `);
+
+  const questionColumns = await all("PRAGMA table_info(questions)");
+  const hasRoundId = questionColumns.some((column) => column.name === "round_id");
+  if (!hasRoundId) {
+    await run("ALTER TABLE questions ADD COLUMN round_id INTEGER");
+  }
+
+  const hasCategoryId = questionColumns.some((column) => column.name === "category_id");
+  if (!hasCategoryId) {
+    await run("ALTER TABLE questions ADD COLUMN category_id INTEGER");
+  }
+
+  const hasPoints = questionColumns.some((column) => column.name === "points");
+  if (!hasPoints) {
+    await run("ALTER TABLE questions ADD COLUMN points INTEGER NOT NULL DEFAULT 100");
+  }
 
   const existingAdmin = await get("SELECT id FROM users WHERE login = ?", [config.adminLogin]);
   if (!existingAdmin) {

@@ -211,7 +211,10 @@
   const questionRoundSelect = document.getElementById('question-round-id');
   const questionStatusEl = document.getElementById('question-status');
   const questionTimerEl = document.getElementById('question-timer');
+  const roundTabs = document.querySelectorAll('[data-round-tab]');
+  const roundPanels = document.querySelectorAll('[data-round-panel]');
   let timerInterval = null;
+  let activeRoundId = rounds[0] ? rounds[0].id : null;
 
   socket.emit('host:join', { gameCode: game.code });
 
@@ -292,6 +295,18 @@
       questionStatusEl.innerText = 'Нет активного вопроса';
       stopTimer();
     }
+  }
+
+  document.getElementById('copy-link').onclick = async () => {
+    const text = document.getElementById('join-link').value;
+    await navigator.clipboard.writeText(text);
+    appendLog('Ссылка для игроков скопирована');
+  };
+
+  if (rounds.length) {
+    setActiveRound(rounds[0].id);
+    questionRoundSelect.value = rounds[0].id;
+    fillCategoriesForRound(rounds[0].id);
   }
 
   document.getElementById('copy-link').onclick = async () => {

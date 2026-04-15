@@ -4,8 +4,8 @@
   <form id="new-game-form">
     <label>Название игры</label>
     <input type="text" name="title" maxlength="100" required />
-    <label>Раунды и категории (опционально)</label>
-    <textarea name="roundsText" rows="6" placeholder="Раунд 1: История, Кино, Музыка&#10;Раунд 2: Спорт, Наука"></textarea>
+    <label>Раунды (опционально)</label>
+    <textarea name="roundsText" rows="6" placeholder="Раунд 1 | abcd | 5&#10;Раунд 2 | text | 10&#10;Раунд 3 | number | 3"></textarea>
     <button class="button" type="submit">Создать</button>
   </form>
   <div id="result"></div>
@@ -22,13 +22,11 @@
           .map((line) => line.trim())
           .filter(Boolean)
           .map((line) => {
-            const parts = line.split(':');
+            const parts = line.split('|').map((item) => item.trim());
             const roundName = (parts[0] || '').trim();
-            const categories = (parts[1] || '')
-              .split(',')
-              .map((item) => item.trim())
-              .filter(Boolean);
-            return { name: roundName, categories };
+            const questionType = (parts[1] || 'abcd').trim();
+            const questionCount = Number(parts[2] || 5);
+            return { name: roundName, questionType, questionCount };
           })
       : [];
 

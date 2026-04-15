@@ -84,31 +84,18 @@ router.post("/admin/games", requireAdmin, async (req, res) => {
       const roundName = String(roundInput.name || "").trim();
       if (!roundName) continue;
 
-      const roundResult = await run(
-        "INSERT INTO rounds (game_id, name, settings_json, sort_order) VALUES (?, ?, '{}', ?)",
-        [gameId, roundName.slice(0, 120), roundIndex + 1]
-      );
+      const questionType = String(roundInput.questionType || "abcd").trim();
+      const questionCount = Number(roundInput.questionCount || 5);
 
-      const categories = Array.isArray(roundInput.categories) ? roundInput.categories : [];
-      let categoryOrder = 1;
-      for (const categoryNameRaw of categories) {
-        const categoryName = String(categoryNameRaw || "").trim();
-        if (!categoryName) continue;
-        await run(
-          "INSERT INTO categories (game_id, round_id, name, sort_order) VALUES (?, ?, ?, ?)",
-          [gameId, roundResult.lastID, categoryName.slice(0, 120), categoryOrder]
-        );
-        categoryOrder += 1;
-      }
+      await run(
+        "INSERT INTO rounds (game_id, name, question_type, question_count, settings_json, sort_order) VALUES (?, ?, ?, ?, '{}', ?)",
+        [gameId, roundName.slice(0, 120), questionType, questionCount > 0 ? questionCount : 5, roundIndex + 1]
+      );
     }
   } else {
-    const roundResult = await run(
-      "INSERT INTO rounds (game_id, name, settings_json, sort_order) VALUES (?, ?, '{}', 1)",
-      [gameId, "Раунд 1"]
-    );
     await run(
-      "INSERT INTO categories (game_id, round_id, name, sort_order) VALUES (?, ?, ?, 1)",
-      [gameId, roundResult.lastID, "Категория 1"]
+      "INSERT INTO rounds (game_id, name, question_type, question_count, settings_json, sort_order) VALUES (?, ?, 'abcd', 5, '{}', 1)",
+      [gameId, "Раунд 1"]
     );
   }
 
@@ -150,9 +137,8 @@ router.post("/admin/games/:id/next-question", requireAdmin, async (req, res) => 
     `SELECT q.*
      FROM questions q
      LEFT JOIN rounds r ON r.id = q.round_id
-     LEFT JOIN categories c ON c.id = q.category_id
      WHERE q.game_id = ?
-     ORDER BY COALESCE(r.sort_order, 0) ASC, COALESCE(c.sort_order, 0) ASC, q.sort_order ASC, q.id ASC`,
+     ORDER BY COALESCE(r.sort_order, 0) ASC, q.sort_order ASC, q.id ASC`,
     [game.id]
   );
 

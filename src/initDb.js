@@ -50,6 +50,8 @@ async function init() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       game_id INTEGER NOT NULL,
       name TEXT NOT NULL,
+      question_type TEXT NOT NULL DEFAULT 'abcd',
+      question_count INTEGER NOT NULL DEFAULT 5,
       settings_json TEXT NOT NULL DEFAULT '{}',
       sort_order INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -113,6 +115,17 @@ async function init() {
   const hasPoints = questionColumns.some((column) => column.name === "points");
   if (!hasPoints) {
     await run("ALTER TABLE questions ADD COLUMN points INTEGER NOT NULL DEFAULT 100");
+  }
+
+  const roundColumns = await all("PRAGMA table_info(rounds)");
+  const hasRoundType = roundColumns.some((column) => column.name === "question_type");
+  if (!hasRoundType) {
+    await run("ALTER TABLE rounds ADD COLUMN question_type TEXT NOT NULL DEFAULT 'abcd'");
+  }
+
+  const hasRoundCount = roundColumns.some((column) => column.name === "question_count");
+  if (!hasRoundCount) {
+    await run("ALTER TABLE rounds ADD COLUMN question_count INTEGER NOT NULL DEFAULT 5");
   }
 
   const existingAdmin = await get("SELECT id FROM users WHERE login = ?", [config.adminLogin]);

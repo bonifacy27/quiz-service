@@ -5,6 +5,7 @@ const QRCode = require("qrcode");
 const config = require("../config");
 const { get, all, run } = require("../db");
 const { ensureGame } = require("../services/gameState");
+const { ensureExtendedGameSchema } = require("../services/schemaGuard");
 
 const router = express.Router();
 
@@ -210,6 +211,7 @@ router.post("/admin/games/:id/edit", requireAdmin, async (req, res) => {
 });
 
 router.post("/admin/games/:id/delete", requireAdmin, async (req, res) => {
+  await ensureExtendedGameSchema();
   const game = await get("SELECT id FROM games WHERE id = ?", [req.params.id]);
   if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
 
@@ -224,6 +226,7 @@ router.post("/admin/games/:id/delete", requireAdmin, async (req, res) => {
 });
 
 router.post("/admin/games/:id/questions", requireAdmin, async (req, res) => {
+  await ensureExtendedGameSchema();
   const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
   if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
 
@@ -355,6 +358,7 @@ router.post("/admin/games/:id/questions/:questionId/delete", requireAdmin, async
 });
 
 router.post("/admin/games/:id/rounds", requireAdmin, async (req, res) => {
+  await ensureExtendedGameSchema();
   const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
   if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
 
@@ -372,6 +376,7 @@ router.post("/admin/games/:id/rounds", requireAdmin, async (req, res) => {
 });
 
 router.post("/admin/games/:id/rounds/:roundId/categories", requireAdmin, async (req, res) => {
+  await ensureExtendedGameSchema();
   const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
   if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
 
@@ -396,6 +401,7 @@ router.post("/admin/games/:id/rounds/:roundId/categories", requireAdmin, async (
 });
 
 router.get("/admin/games/:id/control", requireAdmin, async (req, res) => {
+  await ensureExtendedGameSchema();
   const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
   if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
 

@@ -2,6 +2,7 @@ const express = require("express");
 const crypto = require("crypto");
 const { run, get, all } = require("../db");
 const { ensureGame, resetQuestionState, clearQuestionTimer } = require("../services/gameState");
+const { ensureExtendedGameSchema } = require("../services/schemaGuard");
 
 const router = express.Router();
 
@@ -62,6 +63,7 @@ function scheduleQuestionClose(io, gameCode) {
 }
 
 router.post("/admin/games", requireAdmin, async (req, res) => {
+  await ensureExtendedGameSchema();
   const title = String(req.body.title || "").trim().slice(0, 100);
   if (!title) return res.status(400).json({ error: "Title is required" });
 
@@ -137,6 +139,7 @@ router.post("/admin/games/:id/start", requireAdmin, async (req, res) => {
 });
 
 router.post("/admin/games/:id/next-question", requireAdmin, async (req, res) => {
+  await ensureExtendedGameSchema();
   const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
   if (!game) return res.status(404).json({ error: "Game not found" });
 

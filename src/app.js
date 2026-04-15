@@ -9,6 +9,7 @@ const config = require("./config");
 const webRoutes = require("./routes/web");
 const apiRoutes = require("./routes/api");
 const registerGameSocket = require("./sockets/gameSocket");
+const { ensureExtendedGameSchema } = require("./services/schemaGuard");
 
 fs.mkdirSync(path.resolve(process.cwd(), "public"), { recursive: true });
 fs.mkdirSync(path.resolve(process.cwd(), "uploads"), { recursive: true });
@@ -39,6 +40,13 @@ app.use("/api", apiRoutes);
 
 registerGameSocket(io);
 
-server.listen(config.port, () => {
-  console.log(`Quiz service started on http://localhost:${config.port}`);
-});
+ensureExtendedGameSchema()
+  .then(() => {
+    server.listen(config.port, () => {
+      console.log(`Quiz service started on http://localhost:${config.port}`);
+    });
+  })
+  .catch((error) => {
+    console.error("Failed to ensure extended DB schema:", error);
+    process.exit(1);
+  });

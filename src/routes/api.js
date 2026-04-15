@@ -2,6 +2,7 @@ const express = require("express");
 const crypto = require("crypto");
 const { run, get, all } = require("../db");
 const { ensureGame, resetQuestionState, clearQuestionTimer } = require("../services/gameState");
+const { ensureExtendedGameSchema } = require("../services/schemaGuard");
 
 const router = express.Router();
 
@@ -62,6 +63,7 @@ function scheduleQuestionClose(io, gameCode) {
 }
 
 router.post("/admin/games", requireAdmin, async (req, res) => {
+  await ensureExtendedGameSchema();
   const title = String(req.body.title || "").trim().slice(0, 100);
   if (!title) return res.status(400).json({ error: "Title is required" });
 
@@ -72,23 +74,30 @@ router.post("/admin/games", requireAdmin, async (req, res) => {
   );
 
   const gameId = result.lastID;
+  const roundsInput = Array.isArray(req.body.rounds) ? req.body.rounds : [];
 
-  // demo questions
-  await run(
-    "INSERT INTO questions (game_id, type, title, payload_json, sort_order) VALUES (?, ?, ?, ?, ?)",
-    [gameId, "abcd", "Столица Франции?", JSON.stringify({
-      options: ["Берлин", "Мадрид", "Париж", "Рим"],
-      correct: 2,
-      timeLimitSec: 15
-    }), 1]
-  );
+  const hasCustomRounds = roundsInput.some((round) => round && String(round.name || "").trim());
 
-  await run(
-    "INSERT INTO questions (game_id, type, title, payload_json, sort_order) VALUES (?, ?, ?, ?, ?)",
-    [gameId, "buzz", "Кто быстрее нажмет кнопку?", JSON.stringify({
-      timeLimitSec: 10
-    }), 2]
-  );
+  if (hasCustomRounds) {
+    for (let roundIndex = 0; roundIndex < roundsInput.length; roundIndex += 1) {
+      const roundInput = roundsInput[roundIndex] || {};
+      const roundName = String(roundInput.name || "").trim();
+      if (!roundName) continue;
+
+      const questionType = String(roundInput.questionType || "abcd").trim();
+      const questionCount = Number(roundInput.questionCount || 5);
+
+      await run(
+        "INSERT INTO rounds (game_id, name, question_type, question_count, settings_json, sort_order) VALUES (?, ?, ?, ?, '{}', ?)",
+        [gameId, roundName.slice(0, 120), questionType, questionCount > 0 ? questionCount : 5, roundIndex + 1]
+      );
+    }
+  } else {
+    await run(
+      "INSERT INTO rounds (game_id, name, question_type, question_count, settings_json, sort_order) VALUES (?, ?, 'abcd', 5, '{}', 1)",
+      [gameId, "Раунд 1"]
+    );
+  }
 
   res.json({ ok: true, gameId, code });
 });
@@ -117,6 +126,7 @@ router.post("/admin/games/:id/start", requireAdmin, async (req, res) => {
 });
 
 router.post("/admin/games/:id/next-question", requireAdmin, async (req, res) => {
+  await ensureExtendedGameSchema();
   const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
   if (!game) return res.status(404).json({ error: "Game not found" });
 
@@ -124,7 +134,11 @@ router.post("/admin/games/:id/next-question", requireAdmin, async (req, res) => 
   closeCurrentQuestion(io, game.code, "next_question");
 
   const questions = await all(
-    "SELECT * FROM questions WHERE game_id = ? ORDER BY sort_order ASC, id ASC",
+    `SELECT q.*
+     FROM questions q
+     LEFT JOIN rounds r ON r.id = q.round_id
+     WHERE q.game_id = ?
+     ORDER BY COALESCE(r.sort_order, 0) ASC, q.sort_order ASC, q.id ASC`,
     [game.id]
   );
 

@@ -4,6 +4,8 @@
   <form id="new-game-form">
     <label>Название игры</label>
     <input type="text" name="title" maxlength="100" required />
+    <label>Раунды (опционально)</label>
+    <textarea name="roundsText" rows="6" placeholder="Раунд 1 | abcd | 5&#10;Раунд 2 | text | 10&#10;Раунд 3 | number | 3"></textarea>
     <button class="button" type="submit">Создать</button>
   </form>
   <div id="result"></div>
@@ -13,7 +15,22 @@
   document.getElementById('new-game-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
-    const payload = { title: formData.get('title') };
+    const roundsText = String(formData.get('roundsText') || '').trim();
+    const rounds = roundsText
+      ? roundsText
+          .split('\n')
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .map((line) => {
+            const parts = line.split('|').map((item) => item.trim());
+            const roundName = (parts[0] || '').trim();
+            const questionType = (parts[1] || 'abcd').trim();
+            const questionCount = Number(parts[2] || 5);
+            return { name: roundName, questionType, questionCount };
+          })
+      : [];
+
+    const payload = { title: formData.get('title'), rounds };
 
     const response = await fetch('/api/admin/games', {
       method: 'POST',

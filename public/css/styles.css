@@ -77,6 +77,12 @@ body {
   background: #b91c1c;
 }
 
+.button-outline {
+  background: transparent;
+  color: #1d4ed8;
+  border: 1px solid #1d4ed8;
+}
+
 .option {
   display: block;
   width: 100%;
@@ -175,4 +181,28 @@ textarea {
   text-decoration: underline;
   padding: 0;
   margin-left: 8px;
+}
+
+.inline-form {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+
+.inline-form input {
+  flex: 1;
+  min-width: 220px;
+}
+
+.round-board {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px;
+  margin-top: 12px;
+}
+
+.table-scroll {
+  overflow-x: auto;
 }

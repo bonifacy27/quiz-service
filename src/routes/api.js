@@ -72,23 +72,43 @@ router.post("/admin/games", requireAdmin, async (req, res) => {
   );
 
   const gameId = result.lastID;
+  const roundsInput = Array.isArray(req.body.rounds) ? req.body.rounds : [];
 
-  // demo questions
-  await run(
-    "INSERT INTO questions (game_id, type, title, payload_json, sort_order) VALUES (?, ?, ?, ?, ?)",
-    [gameId, "abcd", "Столица Франции?", JSON.stringify({
-      options: ["Берлин", "Мадрид", "Париж", "Рим"],
-      correct: 2,
-      timeLimitSec: 15
-    }), 1]
-  );
+  const hasCustomRounds = roundsInput.some((round) => round && String(round.name || "").trim());
 
-  await run(
-    "INSERT INTO questions (game_id, type, title, payload_json, sort_order) VALUES (?, ?, ?, ?, ?)",
-    [gameId, "buzz", "Кто быстрее нажмет кнопку?", JSON.stringify({
-      timeLimitSec: 10
-    }), 2]
-  );
+  if (hasCustomRounds) {
+    for (let roundIndex = 0; roundIndex < roundsInput.length; roundIndex += 1) {
+      const roundInput = roundsInput[roundIndex] || {};
+      const roundName = String(roundInput.name || "").trim();
+      if (!roundName) continue;
+
+      const roundResult = await run(
+        "INSERT INTO rounds (game_id, name, settings_json, sort_order) VALUES (?, ?, '{}', ?)",
+        [gameId, roundName.slice(0, 120), roundIndex + 1]
+      );
+
+      const categories = Array.isArray(roundInput.categories) ? roundInput.categories : [];
+      let categoryOrder = 1;
+      for (const categoryNameRaw of categories) {
+        const categoryName = String(categoryNameRaw || "").trim();
+        if (!categoryName) continue;
+        await run(
+          "INSERT INTO categories (game_id, round_id, name, sort_order) VALUES (?, ?, ?, ?)",
+          [gameId, roundResult.lastID, categoryName.slice(0, 120), categoryOrder]
+        );
+        categoryOrder += 1;
+      }
+    }
+  } else {
+    const roundResult = await run(
+      "INSERT INTO rounds (game_id, name, settings_json, sort_order) VALUES (?, ?, '{}', 1)",
+      [gameId, "Раунд 1"]
+    );
+    await run(
+      "INSERT INTO categories (game_id, round_id, name, sort_order) VALUES (?, ?, ?, 1)",
+      [gameId, roundResult.lastID, "Категория 1"]
+    );
+  }
 
   res.json({ ok: true, gameId, code });
 });
@@ -124,7 +144,12 @@ router.post("/admin/games/:id/next-question", requireAdmin, async (req, res) => 
   closeCurrentQuestion(io, game.code, "next_question");
 
   const questions = await all(
-    "SELECT * FROM questions WHERE game_id = ? ORDER BY sort_order ASC, id ASC",
+    `SELECT q.*
+     FROM questions q
+     LEFT JOIN rounds r ON r.id = q.round_id
+     LEFT JOIN categories c ON c.id = q.category_id
+     WHERE q.game_id = ?
+     ORDER BY COALESCE(r.sort_order, 0) ASC, COALESCE(c.sort_order, 0) ASC, q.sort_order ASC, q.id ASC`,
     [game.id]
   );
 

@@ -31,7 +31,20 @@ function evaluateAnswer(question, answer) {
   return { isCorrect: false, scoreDelta: 0 };
 }
 
+function getCorrectAnswerText(question) {
+  if (!question || !question.payload) return "";
+  if (question.type === "abcd") {
+    const correct = Number(question.payload.correct);
+    const options = Array.isArray(question.payload.options) ? question.payload.options : [];
+    return options[correct] ? `Верный ответ: ${options[correct]}` : "";
+  }
+  if (question.type === "text") return `Верный ответ: ${question.payload.correctText || ""}`;
+  if (question.type === "number") return `Верный ответ: ${question.payload.correctNumber}`;
+  return "";
+}
+
 module.exports = {
   evaluateAnswer,
+  getCorrectAnswerText,
   normalizeText,
 };

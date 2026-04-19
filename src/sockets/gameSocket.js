@@ -13,9 +13,11 @@ async function getLeaderboard(gameId) {
 }
 
 async function runLeaderboardQuery(gameId) {
+  const game = await get("SELECT current_session_id FROM games WHERE id = ?", [gameId]);
+  if (!game || !game.current_session_id) return [];
   return all(
-    "SELECT id, name, score FROM players WHERE game_id = ? ORDER BY score DESC, id ASC",
-    [gameId]
+    "SELECT id, name, score FROM players WHERE game_id = ? AND session_id = ? ORDER BY score DESC, id ASC",
+    [gameId, game.current_session_id]
   );
 }
 
@@ -45,13 +47,25 @@ function emitCurrentQuestion(socket, gameCode) {
   });
 }
 
+async function emitPlayerStatus(io, gameCode) {
+  const game = await get("SELECT id, current_session_id FROM games WHERE code = ?", [gameCode]);
+  if (!game || !game.current_session_id) return;
+  const players = await all(
+    "SELECT id, name, connected FROM players WHERE game_id = ? AND session_id = ? ORDER BY id ASC",
+    [game.id, game.current_session_id]
+  );
+  io.to(`host:${gameCode}`).emit("player:list", { players });
+}
+
 function registerGameSocket(io) {
   io.on("connection", (socket) => {
     socket.on("host:join", async ({ gameCode }) => {
       socket.join(`game:${gameCode}`);
       socket.join(`host:${gameCode}`);
       await emitLeaderboardToSocket(socket, gameCode);
+      await emitPlayerStatus(io, gameCode);
       emitCurrentQuestion(socket, gameCode);
+      socket.emit("screen:state", ensureGame(gameCode).screen);
       socket.emit("host:joined", { ok: true });
     });
 
@@ -59,6 +73,7 @@ function registerGameSocket(io) {
       socket.join(`game:${gameCode}`);
       socket.join(`screen:${gameCode}`);
       await emitLeaderboardToSocket(socket, gameCode);
+      socket.emit("screen:state", ensureGame(gameCode).screen);
       emitCurrentQuestion(socket, gameCode);
       socket.emit("screen:joined", { ok: true });
     });
@@ -68,7 +83,7 @@ function registerGameSocket(io) {
         `SELECT p.*, g.code AS game_code
          FROM players p
          JOIN games g ON g.id = p.game_id
-         WHERE p.id = ? AND p.session_token = ?`,
+         WHERE p.id = ? AND p.session_token = ? AND p.session_id = g.current_session_id`,
         [playerId, sessionToken]
       );
       if (!player || player.game_code !== gameCode) {
@@ -82,13 +97,15 @@ function registerGameSocket(io) {
       socket.data.gameCode = gameCode;
 
       const liveGame = ensureGame(gameCode);
-      liveGame.players.set(player.id, { id: player.id, name: player.name });
+      liveGame.currentSessionId = player.session_id;
+      liveGame.players.set(player.id, { id: player.id, name: player.name, connected: 1 });
 
       await run("UPDATE players SET connected = 1 WHERE id = ?", [player.id]);
 
       io.to(`game:${gameCode}`).emit("player:list", {
         players: Array.from(liveGame.players.values()),
       });
+      await emitPlayerStatus(io, gameCode);
       await emitLeaderboard(io, gameCode, player.game_id);
 
       socket.emit("player:joined", { ok: true, player: { id: player.id, name: player.name } });
@@ -139,10 +156,11 @@ function registerGameSocket(io) {
 
       await run(
         `INSERT INTO player_answers
-          (game_id, question_id, player_id, answer_json, is_correct, score_delta)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+          (game_id, session_id, question_id, player_id, answer_json, is_correct, score_delta)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           game.id,
+          liveGame.currentSessionId,
           liveGame.currentQuestion.id,
           playerId,
           JSON.stringify(answer || {}),
@@ -197,9 +215,9 @@ function registerGameSocket(io) {
       ]);
       await run(
         `INSERT INTO player_answers
-          (game_id, question_id, player_id, answer_json, is_correct, score_delta)
-         VALUES (?, ?, ?, ?, 1, 100)`,
-        [game.id, liveGame.currentQuestion.id, playerId, JSON.stringify({ buzz: true })]
+          (game_id, session_id, question_id, player_id, answer_json, is_correct, score_delta)
+         VALUES (?, ?, ?, ?, ?, 1, 100)`,
+        [game.id, liveGame.currentSessionId, liveGame.currentQuestion.id, playerId, JSON.stringify({ buzz: true })]
       );
 
       io.to(`game:${gameCode}`).emit("buzz:winner", {
@@ -223,6 +241,9 @@ function registerGameSocket(io) {
     socket.on("disconnect", async () => {
       if (socket.data.playerId) {
         await run("UPDATE players SET connected = 0 WHERE id = ?", [socket.data.playerId]);
+        if (socket.data.gameCode) {
+          await emitPlayerStatus(io, socket.data.gameCode);
+        }
       }
     });
   });

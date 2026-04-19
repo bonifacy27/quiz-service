@@ -72,6 +72,19 @@ async function init() {
     )
   `);
 
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS game_sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      game_id INTEGER NOT NULL,
+      session_number INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'live',
+      started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      ended_at TEXT,
+      FOREIGN KEY(game_id) REFERENCES games(id)
+    )
+  `);
+
   await run(`
     CREATE TABLE IF NOT EXISTS players (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -126,6 +139,26 @@ async function init() {
   const hasRoundCount = roundColumns.some((column) => column.name === "question_count");
   if (!hasRoundCount) {
     await run("ALTER TABLE rounds ADD COLUMN question_count INTEGER NOT NULL DEFAULT 5");
+  }
+
+
+
+  const gameColumns = await all("PRAGMA table_info(games)");
+  const hasCurrentSessionId = gameColumns.some((column) => column.name === "current_session_id");
+  if (!hasCurrentSessionId) {
+    await run("ALTER TABLE games ADD COLUMN current_session_id INTEGER");
+  }
+
+  const playerColumns = await all("PRAGMA table_info(players)");
+  const hasPlayerSessionId = playerColumns.some((column) => column.name === "session_id");
+  if (!hasPlayerSessionId) {
+    await run("ALTER TABLE players ADD COLUMN session_id INTEGER");
+  }
+
+  const playerAnswerColumns = await all("PRAGMA table_info(player_answers)");
+  const hasAnswerSessionId = playerAnswerColumns.some((column) => column.name === "session_id");
+  if (!hasAnswerSessionId) {
+    await run("ALTER TABLE player_answers ADD COLUMN session_id INTEGER");
   }
 
   const existingAdmin = await get("SELECT id FROM users WHERE login = ?", [config.adminLogin]);

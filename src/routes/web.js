@@ -100,16 +100,20 @@ router.get("/join/:code", async (req, res) => {
 });
 
 router.post("/join/:code", async (req, res) => {
+  await ensureExtendedGameSchema();
   const game = await get("SELECT * FROM games WHERE code = ?", [req.params.code]);
   if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
+  if (!game.current_session_id) {
+    return res.status(400).render("error", { message: "Игра еще не запущена ведущим" });
+  }
 
   const name = String(req.body.name || "").trim().slice(0, 40);
   if (!name) return res.status(400).render("error", { message: "Введите имя игрока" });
 
   const sessionToken = crypto.randomUUID();
   const result = await run(
-    "INSERT INTO players (game_id, name, session_token, connected) VALUES (?, ?, ?, 1)",
-    [game.id, name, sessionToken]
+    "INSERT INTO players (game_id, session_id, name, session_token, connected) VALUES (?, ?, ?, ?, 1)",
+    [game.id, game.current_session_id, name, sessionToken]
   );
 
   req.session.player = {
@@ -127,26 +131,29 @@ router.post("/join/:code", async (req, res) => {
 });
 
 router.get("/player/:code", async (req, res) => {
+  await ensureExtendedGameSchema();
   if (!req.session.player || req.session.player.gameCode !== req.params.code) {
     return res.redirect(`/join/${req.params.code}`);
   }
   const game = await get("SELECT * FROM games WHERE code = ?", [req.params.code]);
+  if (!game.current_session_id) return res.status(400).render("error", { message: "Игра не активна" });
   const leaderboard = await all(
-    "SELECT id, name, score FROM players WHERE game_id = ? ORDER BY score DESC, id ASC",
-    [game.id]
+    "SELECT id, name, score FROM players WHERE game_id = ? AND session_id = ? ORDER BY score DESC, id ASC",
+    [game.id, game.current_session_id]
   );
   res.render("player", { game, player: req.session.player, leaderboard });
 });
 
 router.get("/game/:code", async (req, res) => {
+  await ensureExtendedGameSchema();
   const game = await get("SELECT * FROM games WHERE code = ?", [req.params.code]);
   if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
 
   const qrUrl = `${getPublicBaseUrl(req)}/join/${game.code}`;
   const qrDataUrl = await QRCode.toDataURL(qrUrl);
   const leaderboard = await all(
-    "SELECT id, name, score FROM players WHERE game_id = ? ORDER BY score DESC, id ASC",
-    [game.id]
+    "SELECT id, name, score FROM players WHERE game_id = ? AND session_id = ? ORDER BY score DESC, id ASC",
+    [game.id, game.current_session_id || 0]
   );
   res.render("screen", { game, qrUrl, qrDataUrl, leaderboard });
 });
@@ -241,16 +248,6 @@ router.post("/admin/games/:id/questions", requireAdmin, async (req, res) => {
   if (type !== round.question_type) {
     return res.status(400).render("error", {
       message: `В раунде "${round.name}" разрешены только вопросы типа ${round.question_type}`,
-    });
-  }
-
-  const roundQuestionsCount = await get("SELECT COUNT(*) AS total FROM questions WHERE game_id = ? AND round_id = ?", [
-    game.id,
-    round.id,
-  ]);
-  if (Number(roundQuestionsCount.total || 0) >= Number(round.question_count || 0)) {
-    return res.status(400).render("error", {
-      message: `В раунде "${round.name}" уже создано максимальное число вопросов (${round.question_count})`,
     });
   }
 
@@ -373,23 +370,18 @@ router.post("/admin/games/:id/rounds", requireAdmin, async (req, res) => {
 
   const name = String(req.body.name || "").trim().slice(0, 120);
   const questionType = String(req.body.questionType || "").trim();
-  const questionCount = Number(req.body.questionCount || 0);
   if (!name) return res.status(400).render("error", { message: "Введите название раунда" });
   if (!["abcd", "text", "number", "buzz"].includes(questionType)) {
     return res.status(400).render("error", { message: "Выберите корректный тип вопросов раунда" });
   }
-  if (!Number.isInteger(questionCount) || questionCount <= 0) {
-    return res.status(400).render("error", { message: "Количество вопросов должно быть целым числом больше 0" });
-  }
 
   const order = await get("SELECT COALESCE(MAX(sort_order), 0) AS maxOrder FROM rounds WHERE game_id = ?", [game.id]);
   await run(
-    "INSERT INTO rounds (game_id, name, question_type, question_count, settings_json, sort_order) VALUES (?, ?, ?, ?, '{}', ?)",
+    "INSERT INTO rounds (game_id, name, question_type, question_count, settings_json, sort_order) VALUES (?, ?, ?, 9999, '{}', ?)",
     [
     game.id,
     name,
     questionType,
-    questionCount,
     Number(order.maxOrder || 0) + 1,
     ]
   );
@@ -405,7 +397,7 @@ router.get("/admin/games/:id/control", requireAdmin, async (req, res) => {
   let rounds = await all("SELECT * FROM rounds WHERE game_id = ? ORDER BY sort_order ASC, id ASC", [game.id]);
   if (!rounds.length) {
     const roundResult = await run(
-      "INSERT INTO rounds (game_id, name, question_type, question_count, settings_json, sort_order) VALUES (?, 'Раунд 1', 'abcd', 5, '{}', 1)",
+      "INSERT INTO rounds (game_id, name, question_type, question_count, settings_json, sort_order) VALUES (?, 'Раунд 1', 'abcd', 9999, '{}', 1)",
       [game.id]
     );
     rounds = await all("SELECT * FROM rounds WHERE game_id = ? ORDER BY sort_order ASC, id ASC", [game.id]);
@@ -419,14 +411,24 @@ router.get("/admin/games/:id/control", requireAdmin, async (req, res) => {
      ORDER BY COALESCE(r.sort_order, 0) ASC, q.sort_order ASC, q.id ASC`,
     [game.id]
   );
-  const players = await all("SELECT id, name, score FROM players WHERE game_id = ? ORDER BY score DESC, id ASC", [game.id]);
+  const sessions = await all(
+    "SELECT * FROM game_sessions WHERE game_id = ? ORDER BY session_number DESC, id DESC",
+    [game.id]
+  );
+  const currentSessionId = game.current_session_id || (sessions[0] ? sessions[0].id : null);
+  const players = currentSessionId
+    ? await all(
+      "SELECT id, name, score, connected FROM players WHERE game_id = ? AND session_id = ? ORDER BY score DESC, id ASC",
+      [game.id, currentSessionId]
+    )
+    : [];
   const roundScoresRaw = await all(
     `SELECT pa.player_id, q.round_id, COALESCE(SUM(pa.score_delta), 0) AS score
      FROM player_answers pa
      JOIN questions q ON q.id = pa.question_id
-     WHERE pa.game_id = ?
+     WHERE pa.game_id = ? AND pa.session_id = ?
      GROUP BY pa.player_id, q.round_id`,
-    [game.id]
+    [game.id, currentSessionId || 0]
   );
   const roundScoresMap = new Map();
   roundScoresRaw.forEach((row) => {
@@ -447,6 +449,9 @@ router.get("/admin/games/:id/control", requireAdmin, async (req, res) => {
   res.render("admin-game-control", {
     game,
     rounds,
+    sessions,
+    currentSessionId,
+    players,
     questions,
     roundScoreTable,
     joinUrl,

@@ -1,44 +1,30 @@
 <%- include('partials/header', { title: 'Экран игры', user: null }) %>
 <section class="card">
-  <div class="row gap wrap">
-    <div>
-      <h1><%= game.title %></h1>
-      <p>Код игры: <code><%= game.code %></code></p>
-      <img src="<%= qrDataUrl %>" alt="QR code" class="qr" />
-      <p><a href="<%= qrUrl %>"><%= qrUrl %></a></p>
+  <div class="screen-box game-screen-box">
+    <h1 id="screen-title"><%= game.title %></h1>
+    <div class="screen-meta">
+      <span><strong>Статус:</strong> <span id="screen-status">Ожидание</span></span>
+      <span><strong>Таймер:</strong> <span id="screen-timer">—</span></span>
     </div>
-    <div class="screen-box game-screen-box">
-      <h2 id="screen-title">Ожидание начала игры</h2>
-      <div class="screen-meta">
-        <span><strong>Статус:</strong> <span id="screen-status">Нет активного вопроса</span></span>
-        <span><strong>Таймер:</strong> <span id="screen-timer">—</span></span>
-      </div>
-      <div id="screen-content"></div>
-    </div>
+    <div id="screen-content"></div>
+    <div id="answer-box" class="notice" style="display:none"></div>
   </div>
 </section>
 
-<section class="card">
-  <h2>Leaderboard</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>Место</th>
-        <th>Игрок</th>
-        <th>Очки</th>
-      </tr>
-    </thead>
-    <tbody id="leaderboard-body">
-      <% leaderboard.forEach((player, index) => { %>
-        <tr>
-          <td><%= index + 1 %></td>
-          <td><%= player.name %></td>
-          <td><%= player.score %></td>
-        </tr>
-      <% }) %>
-    </tbody>
-  </table>
+<section class="card" id="qr-block" style="display:none">
+  <h2>Подключение игроков</h2>
+  <img src="<%= qrDataUrl %>" alt="QR code" class="qr" />
+  <p>Код: <code><%= game.code %></code></p>
+  <p><a href="<%= qrUrl %>"><%= qrUrl %></a></p>
 </section>
+
+<section class="card" id="players-block" style="display:none"><h2>Игроки</h2><ul id="players-list"></ul></section>
+<section class="card" id="leaderboard-block" style="display:none">
+  <h2>Таблица очков</h2>
+  <table><thead><tr><th>Место</th><th>Игрок</th><th>Очки</th></tr></thead><tbody id="leaderboard-body"></tbody></table>
+</section>
+<section class="card" id="winners-block" style="display:none"><h2>Победители</h2><ol id="winners-list"></ol></section>
+<section class="card" id="round-scores-block" style="display:none"><h2>Итоги раунда</h2><div id="round-scores"></div></section>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -48,84 +34,88 @@
   const contentEl = document.getElementById('screen-content');
   const statusEl = document.getElementById('screen-status');
   const timerEl = document.getElementById('screen-timer');
+  const answerBox = document.getElementById('answer-box');
   const leaderboardBody = document.getElementById('leaderboard-body');
+  const winnersList = document.getElementById('winners-list');
+  const playersList = document.getElementById('players-list');
   let timerInterval = null;
+  let latestLeaderboard = [];
 
   socket.emit('screen:join', { gameCode: game.code });
 
-  socket.on('game:started', () => {
-    titleEl.innerText = 'Игра началась';
+  socket.on('screen:state', (state) => {
+    document.getElementById('qr-block').style.display = state.showQr ? 'block' : 'none';
+    document.getElementById('leaderboard-block').style.display = state.showLeaderboard ? 'block' : 'none';
+    document.getElementById('players-block').style.display = state.showPlayers ? 'block' : 'none';
+    document.getElementById('winners-block').style.display = state.showWinners ? 'block' : 'none';
+    document.getElementById('round-scores-block').style.display = state.showRoundScores ? 'block' : 'none';
+    renderWinners(latestLeaderboard);
   });
 
   socket.on('question:show', (question) => {
+    answerBox.style.display = 'none';
     titleEl.innerText = question.title;
     renderQuestion(question);
     setStatus(question.status || 'active');
     startTimer(question.timerEndsAt);
   });
 
+  socket.on('question:answer', ({ text }) => {
+    answerBox.innerText = text || 'Верный ответ показан';
+    answerBox.style.display = 'block';
+  });
+
   socket.on('question:closed', () => {
     setStatus('closed');
     stopTimer();
-    timerEl.innerText = '0 сек';
-
-    const div = document.createElement('div');
-    div.className = 'notice';
-    div.innerText = 'Прием ответов завершен';
-    contentEl.appendChild(div);
   });
 
-  socket.on('buzz:winner', ({ playerId }) => {
-    const div = document.createElement('div');
-    div.className = 'notice';
-    div.innerText = 'Первым нажал игрок #' + playerId;
-    contentEl.appendChild(div);
+  socket.on('round:finished', ({ rows }) => {
+    document.getElementById('round-scores').innerHTML = rows.map((row) => '<div><strong>' + row.name + '</strong>: за раунд ' + row.round_score + ', всего ' + row.total_score + '</div>').join('');
+  });
+
+  socket.on('player:list', ({ players }) => {
+    playersList.innerHTML = players.map((p) => '<li>' + p.name + ' — ' + (p.connected ? 'online' : 'offline') + '</li>').join('');
   });
 
   socket.on('leaderboard:update', ({ leaderboard }) => {
-    renderLeaderboard(leaderboard);
+    latestLeaderboard = leaderboard;
+    leaderboardBody.innerHTML = '';
+    leaderboard.forEach((row) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + row.place + '</td><td>' + row.name + '</td><td>' + row.score + '</td>';
+      leaderboardBody.appendChild(tr);
+    });
+    renderWinners(leaderboard);
   });
 
+  function renderWinners(leaderboard) {
+    winnersList.innerHTML = '';
+    leaderboard.slice(0, 3).forEach((row) => {
+      const li = document.createElement('li');
+      li.textContent = row.name + ' — ' + row.score;
+      winnersList.appendChild(li);
+    });
+  }
+
   function setStatus(status) {
-    if (status === 'active') {
-      statusEl.innerText = 'Активный (прием ответов открыт)';
-    } else if (status === 'closed') {
-      statusEl.innerText = 'Завершен (прием ответов закрыт)';
-    } else {
-      statusEl.innerText = 'Нет активного вопроса';
-    }
+    statusEl.innerText = status === 'active' ? 'Прием ответов открыт' : status === 'closed' ? 'Вопрос закрыт' : 'Ожидание';
   }
-
-  function stopTimer() {
-    if (timerInterval) {
-      clearInterval(timerInterval);
-      timerInterval = null;
-    }
-  }
-
+  function stopTimer() { if (timerInterval) { clearInterval(timerInterval); timerInterval = null; } }
   function startTimer(timerEndsAt) {
     stopTimer();
-
-    if (!timerEndsAt) {
-      timerEl.innerText = '—';
-      return;
-    }
-
+    if (!timerEndsAt) { timerEl.innerText = '—'; return; }
     function tick() {
       const secLeft = Math.max(0, Math.ceil((timerEndsAt - Date.now()) / 1000));
       timerEl.innerText = secLeft + ' сек';
-      if (secLeft <= 0) {
-        stopTimer();
-      }
+      if (secLeft <= 0) stopTimer();
     }
-
     tick();
     timerInterval = setInterval(tick, 250);
   }
 
   function renderQuestion(question) {
     contentEl.innerHTML = '';
-
     if (question.type === 'abcd' && question.payload && Array.isArray(question.payload.options)) {
       const ul = document.createElement('ul');
       ul.className = 'options-list';
@@ -138,17 +128,8 @@
     } else if (question.type === 'buzz') {
       contentEl.innerHTML = '<div class="big-label">Кто быстрее нажмет первым?</div>';
     } else {
-      contentEl.innerText = 'Вопрос открыт. Игроки отвечают со своих устройств.';
+      contentEl.innerText = 'Вопрос открыт. Игроки отвечают.';
     }
-  }
-
-  function renderLeaderboard(leaderboard) {
-    leaderboardBody.innerHTML = '';
-    leaderboard.forEach((row) => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = '<td>' + row.place + '</td><td>' + row.name + '</td><td>' + row.score + '</td>';
-      leaderboardBody.appendChild(tr);
-    });
   }
 </script>
 <%- include('partials/footer') %>

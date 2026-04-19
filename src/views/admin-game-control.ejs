@@ -1,55 +1,105 @@
 <%- include('partials/header', { title: 'Управление игрой', user }) %>
-<section class="card">
-  <h1><%= game.title %> • запуск #<%= game.id %></h1>
 
-  <h2>1. Начало игры</h2>
-  <p>Откройте эту ссылку на проекторе или телевизоре. На этой странице появляются вопросы, ответы и медиа.</p>
+<section class="card" style="position:sticky; top:10px; z-index:5;">
+  <h1><%= game.title %> • управление</h1>
+  <h2>Быстрый блок ведущего (приоритет)</h2>
+  <div id="host-question-box" class="notice">
+    Нет активного вопроса.
+  </div>
+  <div class="row wrap">
+    <button class="button" id="start-round">Запустить раунд</button>
+    <button class="button" id="next-question">Следующий вопрос</button>
+    <button class="button" id="close-question">Закрыть вопрос</button>
+    <button class="button" id="reveal-answer">Показать верный ответ</button>
+    <button class="button button-danger" id="finish-game">Завершить игру</button>
+  </div>
+  <div class="inline-form">
+    <label for="start-round-id">Раунд:</label>
+    <select id="start-round-id">
+      <% rounds.forEach((round) => { %>
+      <option value="<%= round.id %>"><%= round.name %> (<%= round.question_type %>)</option>
+      <% }) %>
+    </select>
+  </div>
+</section>
+
+<details class="card" open>
+  <summary><strong>Запуски и история игры</strong></summary>
+  <h3>Текущий запуск</h3>
+  <% if (currentSessionId) { %>
+    <p>Активный запуск: #<%= currentSessionId %></p>
+    <button class="button" id="continue-current">Продолжить игру</button>
+  <% } else { %>
+    <p>Игра еще не запускалась или была завершена.</p>
+  <% } %>
+  <button class="button" id="start-new">Запустить новую игру</button>
+
+  <h3>История запусков</h3>
+  <% if (!sessions.length) { %>
+    <p>История пока пустая.</p>
+  <% } else { %>
+    <table>
+      <thead><tr><th>#</th><th>Статус</th><th>Запущена</th><th>Действие</th></tr></thead>
+      <tbody>
+      <% sessions.forEach((session) => { %>
+        <tr>
+          <td><%= session.session_number %></td>
+          <td><%= session.status %></td>
+          <td><%= session.started_at %></td>
+          <td>
+            <% if (session.status !== 'finished') { %>
+              <button class="button button-outline continue-session" data-session-id="<%= session.id %>">Продолжить</button>
+            <% } else { %>
+              <span>Завершена</span>
+            <% } %>
+          </td>
+        </tr>
+      <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</details>
+
+<details class="card" open>
+  <summary><strong>Настройки игры</strong></summary>
   <p>
     <a class="button" href="/game/<%= game.code %>" target="_blank" rel="noopener noreferrer">Презентация игры</a>
   </p>
-
-  <h2>2. Подключение игроков</h2>
-  <p>Игроки могут отсканировать QR-код или открыть ссылку и ввести код подключения.</p>
-  <div class="row wrap gap">
-    <img src="<%= qrDataUrl %>" alt="QR подключения" class="qr" />
-    <div>
-      <label>Код подключения игроков</label>
-      <input type="text" value="<%= game.code %>" readonly />
-      <label>Ссылка для подключения</label>
-      <div class="row wrap">
-        <input type="text" id="join-link" value="<%= joinUrl %>" readonly />
-        <button class="button" type="button" id="copy-link">Скопировать</button>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section class="card">
-  <h2>3. Управление экраном игры</h2>
+  <label>Ссылка для подключения</label>
   <div class="row wrap">
-    <button class="button" id="start-game">Запустить игру</button>
-    <button class="button" id="next-question">Открыть следующий вопрос</button>
-    <button class="button button-danger" id="close-question">Закрыть текущий вопрос</button>
+    <input type="text" id="join-link" value="<%= joinUrl %>" readonly />
+    <button class="button" type="button" id="copy-link">Скопировать</button>
   </div>
-  <div class="status-grid">
-    <div><strong>Статус вопроса:</strong> <span id="question-status">Нет активного вопроса</span></div>
-    <div><strong>Таймер:</strong> <span id="question-timer">—</span></div>
-  </div>
-  <div id="control-result"></div>
-</section>
+</details>
 
-<section class="card">
-  <h2>4. Управление игрой</h2>
-
+<details class="card" open>
+  <summary><strong>Управление экраном игры</strong></summary>
   <div class="row wrap">
-    <% rounds.forEach((round, index) => { %>
-      <button class="button <%= index === 0 ? '' : 'button-outline' %>" type="button" data-round-tab="<%= round.id %>">
-        <strong><%= round.name %></strong><br>
-        <small><%= round.question_type %> • <%= round.question_count %> вопросов</small>
-      </button>
-    <% }) %>
+    <button class="button button-outline screen-toggle" data-key="showQr">QR-код</button>
+    <button class="button button-outline screen-toggle" data-key="showLeaderboard">Таблица очков</button>
+    <button class="button button-outline screen-toggle" data-key="showPlayers">Список игроков</button>
+    <button class="button button-outline screen-toggle" data-key="showWinners">Победители</button>
+    <button class="button button-outline screen-toggle" data-key="showRoundScores">Итоги раунда</button>
   </div>
+</details>
 
+<details class="card" open>
+  <summary><strong>Подключенные игроки</strong></summary>
+  <div id="players-box">
+    <% if (!players.length) { %>
+      <p>Игроков пока нет.</p>
+    <% } else { %>
+      <ul>
+        <% players.forEach((player) => { %>
+          <li>#<%= player.id %> <strong><%= player.name %></strong> — <%= player.connected ? 'online' : 'offline' %> — <%= player.score %> очков</li>
+        <% }) %>
+      </ul>
+    <% } %>
+  </div>
+</details>
+
+<details class="card" open>
+  <summary><strong>Раунды и вопросы</strong></summary>
   <form method="post" action="/admin/games/<%= game.id %>/rounds" class="inline-form">
     <input type="text" name="name" maxlength="120" placeholder="Новый раунд" required />
     <select name="questionType" required>
@@ -58,302 +108,150 @@
       <option value="number">number</option>
       <option value="buzz">buzz</option>
     </select>
-    <input type="number" name="questionCount" min="1" max="50" value="5" required />
     <button class="button" type="submit">Добавить раунд</button>
   </form>
 
-  <h3>Добавить вопрос</h3>
   <form method="post" action="/admin/games/<%= game.id %>/questions" id="question-form">
     <label>Раунд</label>
     <select name="roundId" id="question-round-id" required>
       <% rounds.forEach(round => { %>
-        <option
-          value="<%= round.id %>"
-          data-question-type="<%= round.question_type %>"
-          data-question-count="<%= round.question_count %>"
-        ><%= round.name %> (<%= round.question_type %>, <%= round.question_count %> вопросов)</option>
+        <option value="<%= round.id %>" data-question-type="<%= round.question_type %>"><%= round.name %> (<%= round.question_type %>)</option>
       <% }) %>
     </select>
-
     <input type="hidden" name="type" id="question-type-hidden" value="<%= rounds[0] ? rounds[0].question_type : 'abcd' %>" />
 
-    <label>Тип вопросов раунда</label>
-    <input type="text" id="question-type-display" value="<%= rounds[0] ? rounds[0].question_type : 'abcd' %>" readonly />
-
-    <label>Стоимость вопроса</label>
-    <input type="number" name="points" min="10" step="10" value="100" required />
-
-    <label>Заголовок</label>
-    <input type="text" name="title" maxlength="200" required />
+    <label>Заголовок</label><input type="text" name="title" maxlength="200" required />
+    <label>Очки</label><input type="number" name="points" min="10" step="10" value="100" required />
 
     <div data-type-block="abcd">
-      <label>Вариант 1</label>
-      <input type="text" name="option1" />
-      <label>Вариант 2</label>
-      <input type="text" name="option2" />
-      <label>Вариант 3</label>
-      <input type="text" name="option3" />
-      <label>Вариант 4</label>
-      <input type="text" name="option4" />
+      <label>Вариант 1</label><input type="text" name="option1" />
+      <label>Вариант 2</label><input type="text" name="option2" />
+      <label>Вариант 3</label><input type="text" name="option3" />
+      <label>Вариант 4</label><input type="text" name="option4" />
       <label>Правильный вариант</label>
-      <select name="correct">
-        <option value="0">1</option>
-        <option value="1">2</option>
-        <option value="2">3</option>
-        <option value="3">4</option>
-      </select>
+      <select name="correct"><option value="0">1</option><option value="1">2</option><option value="2">3</option><option value="3">4</option></select>
     </div>
+    <div data-type-block="text" style="display:none"><label>Правильный текст</label><input type="text" name="correctText" /></div>
+    <div data-type-block="number" style="display:none"><label>Правильное число</label><input type="number" name="correctNumber" step="any" /></div>
 
-    <div data-type-block="text" style="display:none">
-      <label>Правильный текстовый ответ</label>
-      <input type="text" name="correctText" />
-    </div>
-
-    <div data-type-block="number" style="display:none">
-      <label>Правильный числовой ответ</label>
-      <input type="number" name="correctNumber" step="any" />
-    </div>
-
-    <label>Лимит времени (секунды)</label>
-    <input type="number" name="timeLimitSec" min="1" value="15" />
-
+    <label>Лимит времени (сек)</label><input type="number" name="timeLimitSec" min="1" value="15" />
     <button class="button" type="submit">Добавить вопрос</button>
   </form>
-
-  <% rounds.forEach((round, roundIndex) => {
-    const roundQuestions = questions.filter((question) => question.round_id === round.id);
-  %>
-    <div class="round-board" data-round-panel="<%= round.id %>" style="display:<%= roundIndex === 0 ? 'block' : 'none' %>">
-      <h3><%= round.name %> — тип: <%= round.question_type %>, лимит: <%= round.question_count %></h3>
-      <% if (!roundQuestions.length) { %>
-        <p>В этом раунде пока нет вопросов.</p>
-      <% } else { %>
-        <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Вопрос</th>
-              <th>Очки</th>
-              <th>Действия</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% roundQuestions.forEach((question, index) => { %>
-              <tr>
-                <td><%= index + 1 %></td>
-                <td><%= question.title %></td>
-                <td><%= question.points %></td>
-                <td>
-                  <a href="/admin/games/<%= game.id %>/questions/<%= question.id %>/edit">Редактировать</a>
-                  <form method="post" action="/admin/games/<%= game.id %>/questions/<%= question.id %>/delete" style="display:inline" onsubmit="return confirm('Удалить вопрос? Это действие нельзя отменить.');">
-                    <button type="submit" class="button-link">Удалить</button>
-                  </form>
-                </td>
-              </tr>
-            <% }) %>
-          </tbody>
-        </table>
-      <% } %>
-      <p><strong>Создано:</strong> <%= roundQuestions.length %> / <%= round.question_count %></p>
-    </div>
-  <% }) %>
-</section>
-
-<section class="card">
-  <h2>Таблица результатов по раундам</h2>
-  <% if (!roundScoreTable.length) { %>
-    <p>Игроков пока нет.</p>
-  <% } else { %>
-    <div class="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th>Игрок</th>
-            <% rounds.forEach((round) => { %>
-              <th><%= round.name %></th>
-            <% }) %>
-            <th>Итого</th>
-          </tr>
-        </thead>
-        <tbody>
-          <% roundScoreTable.forEach((row) => { %>
-            <tr>
-              <td><%= row.name %></td>
-              <% row.byRound.forEach((cell) => { %>
-                <td><%= cell.score %></td>
-              <% }) %>
-              <td><strong><%= row.total %></strong></td>
-            </tr>
-          <% }) %>
-        </tbody>
-      </table>
-    </div>
-  <% } %>
-</section>
-
-<section class="card">
-  <h2>Realtime журнал</h2>
-  <div id="log" class="log"></div>
-</section>
+</details>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
   const socket = io();
   const game = <%- JSON.stringify(game) %>;
-  const rounds = <%- JSON.stringify(rounds) %>;
-  const result = document.getElementById('control-result');
-  const log = document.getElementById('log');
-  const typeHidden = document.getElementById('question-type-hidden');
-  const typeDisplay = document.getElementById('question-type-display');
-  const typeBlocks = document.querySelectorAll('[data-type-block]');
-  const roundTabs = document.querySelectorAll('[data-round-tab]');
-  const roundPanels = document.querySelectorAll('[data-round-panel]');
-  const questionRoundSelect = document.getElementById('question-round-id');
-  const questionStatusEl = document.getElementById('question-status');
-  const questionTimerEl = document.getElementById('question-timer');
-  const roundTabs = document.querySelectorAll('[data-round-tab]');
-  const roundPanels = document.querySelectorAll('[data-round-panel]');
-  let timerInterval = null;
-  let activeRoundId = rounds[0] ? rounds[0].id : null;
+  const hostQuestionBox = document.getElementById('host-question-box');
 
   socket.emit('host:join', { gameCode: game.code });
 
-  function appendLog(text) {
-    const line = document.createElement('div');
-    line.innerText = new Date().toLocaleTimeString() + ' — ' + text;
-    log.prepend(line);
+  document.getElementById('copy-link').onclick = async () => {
+    await navigator.clipboard.writeText(document.getElementById('join-link').value);
+  };
+
+  async function post(url, body = {}) {
+    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    return response.json();
   }
 
+  document.getElementById('start-new').onclick = async () => {
+    await post('/api/admin/games/<%= game.id %>/start');
+    location.reload();
+  };
+
+  const continueCurrent = document.getElementById('continue-current');
+  if (continueCurrent) {
+    continueCurrent.onclick = async () => {
+      await post('/api/admin/games/<%= game.id %>/continue', { sessionId: <%= currentSessionId || 'null' %> });
+      location.reload();
+    };
+  }
+
+  document.querySelectorAll('.continue-session').forEach((button) => {
+    button.onclick = async () => {
+      await post('/api/admin/games/<%= game.id %>/continue', { sessionId: Number(button.dataset.sessionId) });
+      location.reload();
+    };
+  });
+
+  document.getElementById('start-round').onclick = async () => {
+    const roundId = Number(document.getElementById('start-round-id').value);
+    await post('/api/admin/games/<%= game.id %>/start-round', { roundId });
+  };
+
+  document.getElementById('next-question').onclick = async () => {
+    await post('/api/admin/games/<%= game.id %>/next-question');
+  };
+
+  document.getElementById('close-question').onclick = async () => {
+    await post('/api/admin/games/<%= game.id %>/close-question');
+  };
+
+  document.getElementById('reveal-answer').onclick = async () => {
+    await post('/api/admin/games/<%= game.id %>/reveal-answer');
+  };
+
+  document.getElementById('finish-game').onclick = async () => {
+    if (!confirm('Завершить игру сейчас?')) return;
+    await post('/api/admin/games/<%= game.id %>/finish');
+    location.reload();
+  };
+
+  document.querySelectorAll('.screen-toggle').forEach((button) => {
+    button.onclick = async () => {
+      const data = await post('/api/admin/games/<%= game.id %>/screen', { key: button.dataset.key });
+      if (data.screen) {
+        button.classList.toggle('button-outline', !data.screen[button.dataset.key]);
+      }
+    };
+  });
+
+  socket.on('player:list', ({ players }) => {
+    const box = document.getElementById('players-box');
+    if (!players.length) {
+      box.innerHTML = '<p>Игроков пока нет.</p>';
+      return;
+    }
+    box.innerHTML = '<ul>' + players.map((player) => '<li>#' + player.id + ' <strong>' + player.name + '</strong> — ' + (player.connected ? 'online' : 'offline') + '</li>').join('') + '</ul>';
+  });
+
+  socket.on('question:show', (question) => {
+    let answerText = '';
+    if (question.type === 'abcd' && question.payload && Array.isArray(question.payload.options)) {
+      const idx = Number(question.payload.correct);
+      answerText = question.payload.options[idx] ? question.payload.options[idx] : '';
+    } else if (question.type === 'text') {
+      answerText = question.payload.correctText || '';
+    } else if (question.type === 'number') {
+      answerText = String(question.payload.correctNumber || '');
+    }
+    hostQuestionBox.innerHTML = '<strong>Текущий вопрос:</strong> ' + question.title + '<br><strong>Тип:</strong> ' + question.type + '<br><strong>Правильный ответ:</strong> ' + (answerText || '—');
+  });
+
+  socket.on('question:closed', () => {
+    hostQuestionBox.innerHTML += '<br><em>Вопрос закрыт</em>';
+  });
+
+  socket.on('game:finished', () => {
+    hostQuestionBox.innerHTML = '<strong>Игра завершена.</strong> Можно запускать новую.';
+  });
+
+  const typeHidden = document.getElementById('question-type-hidden');
+  const typeBlocks = document.querySelectorAll('[data-type-block]');
+  const questionRoundSelect = document.getElementById('question-round-id');
+
   function applyRoundType(roundId) {
-    const option = questionRoundSelect.querySelector(`option[value="${roundId}"]`);
+    const option = questionRoundSelect.querySelector('option[value="' + roundId + '"]');
     const roundType = option ? option.dataset.questionType : 'abcd';
     typeHidden.value = roundType;
-    typeDisplay.value = roundType;
-
     typeBlocks.forEach((el) => {
       el.style.display = el.dataset.typeBlock === roundType ? 'block' : 'none';
     });
   }
 
-  function setActiveRound(roundId) {
-    roundTabs.forEach((tab) => {
-      tab.classList.toggle('button-outline', Number(tab.dataset.roundTab) !== Number(roundId));
-    });
-
-    roundPanels.forEach((panel) => {
-      panel.style.display = Number(panel.dataset.roundPanel) === Number(roundId) ? 'block' : 'none';
-    });
-
-    questionRoundSelect.value = roundId;
-    applyRoundType(roundId);
-  }
-
-  roundTabs.forEach((tab) => {
-    tab.addEventListener('click', () => {
-      setActiveRound(tab.dataset.roundTab);
-    });
-  });
-
-  questionRoundSelect.addEventListener('change', () => {
-    applyRoundType(questionRoundSelect.value);
-  });
-
-  if (rounds.length) {
-    setActiveRound(rounds[0].id);
-  }
-
-  function stopTimer() {
-    if (timerInterval) {
-      clearInterval(timerInterval);
-      timerInterval = null;
-    }
-    questionTimerEl.innerText = '—';
-  }
-
-  function startTimer(timerEndsAt) {
-    stopTimer();
-    if (!timerEndsAt) return;
-
-    function tick() {
-      const secLeft = Math.max(0, Math.ceil((timerEndsAt - Date.now()) / 1000));
-      questionTimerEl.innerText = secLeft + ' сек';
-      if (secLeft <= 0) stopTimer();
-    }
-
-    tick();
-    timerInterval = setInterval(tick, 250);
-  }
-
-  function setQuestionStatus(status, reason) {
-    if (status === 'active') {
-      questionStatusEl.innerText = 'Активный (прием ответов открыт)';
-    } else if (status === 'closed') {
-      questionStatusEl.innerText = 'Завершен (прием ответов закрыт)';
-      if (reason) appendLog('Вопрос завершен: ' + reason);
-      stopTimer();
-    } else {
-      questionStatusEl.innerText = 'Нет активного вопроса';
-      stopTimer();
-    }
-  }
-
-  document.getElementById('copy-link').onclick = async () => {
-    const text = document.getElementById('join-link').value;
-    await navigator.clipboard.writeText(text);
-    appendLog('Ссылка для игроков скопирована');
-  };
-
-  if (rounds.length) {
-    setActiveRound(rounds[0].id);
-    questionRoundSelect.value = rounds[0].id;
-    fillCategoriesForRound(rounds[0].id);
-  }
-
-  document.getElementById('copy-link').onclick = async () => {
-    const text = document.getElementById('join-link').value;
-    await navigator.clipboard.writeText(text);
-    appendLog('Ссылка для игроков скопирована');
-  };
-
-  document.getElementById('start-game').onclick = async () => {
-    const response = await fetch('/api/admin/games/<%= game.id %>/start', { method: 'POST' });
-    const data = await response.json();
-    result.innerText = data.ok ? 'Игра запущена' : 'Ошибка';
-  };
-
-  document.getElementById('next-question').onclick = async () => {
-    const response = await fetch('/api/admin/games/<%= game.id %>/next-question', { method: 'POST' });
-    const data = await response.json();
-    result.innerText = data.finished ? 'Игра завершена' : 'Следующий вопрос открыт';
-  };
-
-  document.getElementById('close-question').onclick = async () => {
-    const response = await fetch('/api/admin/games/<%= game.id %>/close-question', { method: 'POST' });
-    const data = await response.json();
-    result.innerText = data.closed ? 'Текущий вопрос завершен досрочно' : 'Активного вопроса нет';
-  };
-
-  socket.on('player:list', ({ players }) => {
-    appendLog('Подключено игроков: ' + players.length);
-  });
-
-  socket.on('answer:received', ({ playerId, answer }) => {
-    appendLog('Ответ от игрока #' + playerId + ': ' + JSON.stringify(answer));
-  });
-
-  socket.on('question:show', (question) => {
-    setQuestionStatus(question.status || 'active');
-    startTimer(question.timerEndsAt);
-    appendLog('Открыт вопрос #' + question.id + ': ' + question.title);
-  });
-
-  socket.on('question:status', ({ status, reason }) => {
-    setQuestionStatus(status, reason);
-  });
-
-  socket.on('question:closed', ({ questionId, reason }) => {
-    setQuestionStatus('closed', reason);
-    appendLog('Вопрос #' + questionId + ' закрыт');
-  });
+  questionRoundSelect.addEventListener('change', () => applyRoundType(questionRoundSelect.value));
+  applyRoundType(questionRoundSelect.value);
 </script>
 <%- include('partials/footer') %>

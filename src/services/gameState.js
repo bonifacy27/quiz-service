@@ -2,12 +2,24 @@ const state = {
   byGameCode: new Map(),
 };
 
+function defaultScreenState() {
+  return {
+    showQr: false,
+    showLeaderboard: false,
+    showPlayers: false,
+    showWinners: false,
+    showRoundScores: false,
+  };
+}
+
 function ensureGame(code) {
   if (!state.byGameCode.has(code)) {
     state.byGameCode.set(code, {
       code,
       status: "lobby",
-      currentQuestionIndex: -1,
+      currentSessionId: null,
+      activeRoundId: null,
+      roundQuestionIndex: -1,
       currentQuestion: null,
       currentQuestionStatus: "closed",
       players: new Map(),
@@ -15,6 +27,7 @@ function ensureGame(code) {
       buzzWinnerPlayerId: null,
       timerEndsAt: null,
       timerTimeout: null,
+      screen: defaultScreenState(),
     });
   }
   return state.byGameCode.get(code);
@@ -37,9 +50,22 @@ function resetQuestionState(code) {
   game.currentQuestionStatus = "closed";
 }
 
+function resetSessionState(code, { keepPlayers = false } = {}) {
+  const game = ensureGame(code);
+  resetQuestionState(code);
+  game.activeRoundId = null;
+  game.roundQuestionIndex = -1;
+  game.currentQuestion = null;
+  game.screen = defaultScreenState();
+  if (!keepPlayers) {
+    game.players = new Map();
+  }
+}
+
 module.exports = {
   ensureGame,
   clearQuestionTimer,
   resetQuestionState,
+  resetSessionState,
   state,
 };

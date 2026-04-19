@@ -272,6 +272,33 @@ router.post("/admin/games/:id/close-question", requireAdmin, async (req, res) =>
   res.json({ ok: true, closed });
 });
 
+router.post("/admin/games/:id/finish", requireAdmin, async (req, res) => {
+  await ensureExtendedGameSchema();
+  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).json({ error: "Game not found" });
+
+  const io = req.app.get("io");
+  closeCurrentQuestion(io, game.code, "finish");
+
+  if (game.current_session_id) {
+    await run(
+      "UPDATE game_sessions SET status = 'finished', ended_at = CURRENT_TIMESTAMP WHERE id = ?",
+      [game.current_session_id]
+    );
+  }
+  await run("UPDATE games SET status = 'draft', current_session_id = NULL WHERE id = ?", [game.id]);
+
+  const liveGame = ensureGame(game.code);
+  liveGame.status = "finished";
+  liveGame.currentSessionId = null;
+  resetSessionState(game.code);
+  emitScreenState(io, game.code, liveGame);
+
+  io.to(`game:${game.code}`).emit("game:finished", { reason: "host_finish" });
+
+  res.json({ ok: true });
+});
+
 router.post("/admin/games/:id/reveal-answer", requireAdmin, async (req, res) => {
   const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
   if (!game) return res.status(404).json({ error: "Game not found" });

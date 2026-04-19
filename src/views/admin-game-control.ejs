@@ -1,13 +1,36 @@
 <%- include('partials/header', { title: 'Управление игрой', user }) %>
-<section class="card">
-  <h1><%= game.title %> • управление</h1>
 
-  <h2>Текущий запуск</h2>
+<section class="card" style="position:sticky; top:10px; z-index:5;">
+  <h1><%= game.title %> • управление</h1>
+  <h2>Быстрый блок ведущего (приоритет)</h2>
+  <div id="host-question-box" class="notice">
+    Нет активного вопроса.
+  </div>
+  <div class="row wrap">
+    <button class="button" id="start-round">Запустить раунд</button>
+    <button class="button" id="next-question">Следующий вопрос</button>
+    <button class="button" id="close-question">Закрыть вопрос</button>
+    <button class="button" id="reveal-answer">Показать верный ответ</button>
+    <button class="button button-danger" id="finish-game">Завершить игру</button>
+  </div>
+  <div class="inline-form">
+    <label for="start-round-id">Раунд:</label>
+    <select id="start-round-id">
+      <% rounds.forEach((round) => { %>
+      <option value="<%= round.id %>"><%= round.name %> (<%= round.question_type %>)</option>
+      <% }) %>
+    </select>
+  </div>
+</section>
+
+<details class="card" open>
+  <summary><strong>Запуски и история игры</strong></summary>
+  <h3>Текущий запуск</h3>
   <% if (currentSessionId) { %>
     <p>Активный запуск: #<%= currentSessionId %></p>
     <button class="button" id="continue-current">Продолжить игру</button>
   <% } else { %>
-    <p>Игра еще не запускалась.</p>
+    <p>Игра еще не запускалась или была завершена.</p>
   <% } %>
   <button class="button" id="start-new">Запустить новую игру</button>
 
@@ -24,17 +47,21 @@
           <td><%= session.status %></td>
           <td><%= session.started_at %></td>
           <td>
-            <button class="button button-outline continue-session" data-session-id="<%= session.id %>">Продолжить</button>
+            <% if (session.status !== 'finished') { %>
+              <button class="button button-outline continue-session" data-session-id="<%= session.id %>">Продолжить</button>
+            <% } else { %>
+              <span>Завершена</span>
+            <% } %>
           </td>
         </tr>
       <% }) %>
       </tbody>
     </table>
   <% } %>
-</section>
+</details>
 
-<section class="card">
-  <h2>Настройки игры</h2>
+<details class="card" open>
+  <summary><strong>Настройки игры</strong></summary>
   <p>
     <a class="button" href="/game/<%= game.code %>" target="_blank" rel="noopener noreferrer">Презентация игры</a>
   </p>
@@ -43,10 +70,10 @@
     <input type="text" id="join-link" value="<%= joinUrl %>" readonly />
     <button class="button" type="button" id="copy-link">Скопировать</button>
   </div>
-</section>
+</details>
 
-<section class="card">
-  <h2>Управление экраном игры</h2>
+<details class="card" open>
+  <summary><strong>Управление экраном игры</strong></summary>
   <div class="row wrap">
     <button class="button button-outline screen-toggle" data-key="showQr">QR-код</button>
     <button class="button button-outline screen-toggle" data-key="showLeaderboard">Таблица очков</button>
@@ -54,27 +81,10 @@
     <button class="button button-outline screen-toggle" data-key="showWinners">Победители</button>
     <button class="button button-outline screen-toggle" data-key="showRoundScores">Итоги раунда</button>
   </div>
-  <div class="row wrap">
-    <button class="button" id="close-question">Закрыть вопрос</button>
-    <button class="button" id="reveal-answer">Показать верный ответ</button>
-  </div>
-</section>
+</details>
 
-<section class="card">
-  <h2>Управление раундами</h2>
-  <div class="inline-form">
-    <select id="start-round-id">
-      <% rounds.forEach((round) => { %>
-      <option value="<%= round.id %>"><%= round.name %> (<%= round.question_type %>)</option>
-      <% }) %>
-    </select>
-    <button class="button" id="start-round">Запустить раунд</button>
-    <button class="button" id="next-question">Следующий вопрос</button>
-  </div>
-</section>
-
-<section class="card">
-  <h2>Подключенные игроки</h2>
+<details class="card" open>
+  <summary><strong>Подключенные игроки</strong></summary>
   <div id="players-box">
     <% if (!players.length) { %>
       <p>Игроков пока нет.</p>
@@ -86,10 +96,10 @@
       </ul>
     <% } %>
   </div>
-</section>
+</details>
 
-<section class="card">
-  <h2>Раунды и вопросы</h2>
+<details class="card" open>
+  <summary><strong>Раунды и вопросы</strong></summary>
   <form method="post" action="/admin/games/<%= game.id %>/rounds" class="inline-form">
     <input type="text" name="name" maxlength="120" placeholder="Новый раунд" required />
     <select name="questionType" required>
@@ -127,12 +137,13 @@
     <label>Лимит времени (сек)</label><input type="number" name="timeLimitSec" min="1" value="15" />
     <button class="button" type="submit">Добавить вопрос</button>
   </form>
-</section>
+</details>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
   const socket = io();
   const game = <%- JSON.stringify(game) %>;
+  const hostQuestionBox = document.getElementById('host-question-box');
 
   socket.emit('host:join', { gameCode: game.code });
 
@@ -182,6 +193,12 @@
     await post('/api/admin/games/<%= game.id %>/reveal-answer');
   };
 
+  document.getElementById('finish-game').onclick = async () => {
+    if (!confirm('Завершить игру сейчас?')) return;
+    await post('/api/admin/games/<%= game.id %>/finish');
+    location.reload();
+  };
+
   document.querySelectorAll('.screen-toggle').forEach((button) => {
     button.onclick = async () => {
       const data = await post('/api/admin/games/<%= game.id %>/screen', { key: button.dataset.key });
@@ -198,6 +215,27 @@
       return;
     }
     box.innerHTML = '<ul>' + players.map((player) => '<li>#' + player.id + ' <strong>' + player.name + '</strong> — ' + (player.connected ? 'online' : 'offline') + '</li>').join('') + '</ul>';
+  });
+
+  socket.on('question:show', (question) => {
+    let answerText = '';
+    if (question.type === 'abcd' && question.payload && Array.isArray(question.payload.options)) {
+      const idx = Number(question.payload.correct);
+      answerText = question.payload.options[idx] ? question.payload.options[idx] : '';
+    } else if (question.type === 'text') {
+      answerText = question.payload.correctText || '';
+    } else if (question.type === 'number') {
+      answerText = String(question.payload.correctNumber || '');
+    }
+    hostQuestionBox.innerHTML = '<strong>Текущий вопрос:</strong> ' + question.title + '<br><strong>Тип:</strong> ' + question.type + '<br><strong>Правильный ответ:</strong> ' + (answerText || '—');
+  });
+
+  socket.on('question:closed', () => {
+    hostQuestionBox.innerHTML += '<br><em>Вопрос закрыт</em>';
+  });
+
+  socket.on('game:finished', () => {
+    hostQuestionBox.innerHTML = '<strong>Игра завершена.</strong> Можно запускать новую.';
   });
 
   const typeHidden = document.getElementById('question-type-hidden');

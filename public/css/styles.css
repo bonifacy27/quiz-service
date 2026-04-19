@@ -206,3 +206,9 @@ textarea {
 .table-scroll {
   overflow-x: auto;
 }
+
+details > summary {
+  cursor: pointer;
+  font-size: 20px;
+  margin-bottom: 12px;
+}

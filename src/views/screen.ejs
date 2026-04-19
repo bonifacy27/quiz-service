@@ -74,6 +74,13 @@
     document.getElementById('round-scores').innerHTML = rows.map((row) => '<div><strong>' + row.name + '</strong>: за раунд ' + row.round_score + ', всего ' + row.total_score + '</div>').join('');
   });
 
+  socket.on('game:finished', () => {
+    titleEl.innerText = 'Игра завершена';
+    contentEl.innerHTML = '<div class="notice">Ведущий завершил игру. Можно запускать новую сессию.</div>';
+    stopTimer();
+    setStatus('idle');
+  });
+
   socket.on('player:list', ({ players }) => {
     playersList.innerHTML = players.map((p) => '<li>' + p.name + ' — ' + (p.connected ? 'online' : 'offline') + '</li>').join('');
   });

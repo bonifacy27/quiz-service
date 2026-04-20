@@ -1,260 +1,282 @@
-<%- include('partials/header', { title: 'Игрок', user: null }) %>
-<section class="card">
-  <h1>Игрок: <%= player.name %></h1>
-  <p>Игра: <strong><%= game.title %></strong></p>
-  <p>Код: <code><%= game.code %></code></p>
-</section>
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Игрок</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body class="fullscreen-page">
+  <main class="fullscreen-stage">
+    <section class="card fullscreen-card" id="player-question">
+      <h2 id="question-title">Ожидание начала игры...</h2>
+      <div id="question-status" class="notice">Нет активного вопроса</div>
+      <div id="question-timer" class="notice" style="display:none"></div>
+      <div id="answer-result" class="notice" style="display:none"></div>
+      <div id="player-content"></div>
+    </section>
 
-<section class="card" id="player-question">
-  <h2 id="question-title">Ожидание начала игры...</h2>
-  <div id="question-status" class="notice">Нет активного вопроса</div>
-  <div id="question-timer" class="notice" style="display:none"></div>
-  <div id="answer-result" class="notice" style="display:none"></div>
-  <div id="player-content"></div>
-</section>
+    <section class="card fullscreen-card">
+      <h2>Таблица очков</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Место</th>
+            <th>Игрок</th>
+            <th>Очки</th>
+          </tr>
+        </thead>
+        <tbody id="leaderboard-body">
+          <% leaderboard.forEach((row, index) => { %>
+            <tr>
+              <td><%= index + 1 %></td>
+              <td><%= row.name %></td>
+              <td><%= row.score %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </section>
+  </main>
 
-<section class="card">
-  <h2>Leaderboard</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>Место</th>
-        <th>Игрок</th>
-        <th>Очки</th>
-      </tr>
-    </thead>
-    <tbody id="leaderboard-body">
-      <% leaderboard.forEach((row, index) => { %>
-        <tr>
-          <td><%= index + 1 %></td>
-          <td><%= row.name %></td>
-          <td><%= row.score %></td>
-        </tr>
-      <% }) %>
-    </tbody>
-  </table>
-</section>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const player = <%- JSON.stringify(player) %>;
+    const game = <%- JSON.stringify(game) %>;
+    const root = document.getElementById('player-content');
+    const timerBox = document.getElementById('question-timer');
+    const answerResultBox = document.getElementById('answer-result');
+    const questionStatusBox = document.getElementById('question-status');
+    const questionTitle = document.getElementById('question-title');
+    const leaderboardBody = document.getElementById('leaderboard-body');
+    let timerInterval = null;
+    let answeredQuestionIds = new Set();
+    let currentQuestion = null;
 
-<script src="/socket.io/socket.io.js"></script>
-<script>
-  const socket = io();
-  const player = <%- JSON.stringify(player) %>;
-  const game = <%- JSON.stringify(game) %>;
-  const root = document.getElementById('player-content');
-  const timerBox = document.getElementById('question-timer');
-  const answerResultBox = document.getElementById('answer-result');
-  const questionStatusBox = document.getElementById('question-status');
-  const questionTitle = document.getElementById('question-title');
-  const leaderboardBody = document.getElementById('leaderboard-body');
-  let timerInterval = null;
-  let answeredQuestionIds = new Set();
-  let currentQuestion = null;
-
-  socket.emit('player:join', {
-    gameCode: game.code,
-    playerId: player.id,
-    sessionToken: player.sessionToken
-  });
-
-  socket.on('question:show', (question) => {
-    currentQuestion = question;
-    renderQuestion(question);
-  });
-
-  socket.on('question:closed', ({ questionId, reason }) => {
-    if (currentQuestion && currentQuestion.id === questionId) {
-      currentQuestion.status = 'closed';
+    function enableFullscreen() {
+      if (document.fullscreenElement || !document.documentElement.requestFullscreen) return;
+      document.documentElement.requestFullscreen().catch(() => {});
     }
-    lockInputs();
-    setQuestionStatus('closed', reason);
-  });
+    window.addEventListener('load', enableFullscreen);
+    document.addEventListener('click', enableFullscreen, { once: true });
 
-  socket.on('buzz:winner', ({ playerId }) => {
-    const div = document.createElement('div');
-    div.className = 'notice';
-    div.innerText = playerId === player.id ? 'Вы нажали первым! Ответ принят.' : 'Кто-то уже нажал первым';
-    root.appendChild(div);
-    lockInputs();
-  });
-
-  socket.on('answer:result', ({ questionId, isCorrect, scoreDelta }) => {
-    answeredQuestionIds.add(questionId);
-    answerResultBox.style.display = 'block';
-    answerResultBox.innerText = isCorrect
-      ? 'Ответ принят: верно! +' + scoreDelta + ' очков. Повторный ответ невозможен.'
-      : 'Ответ принят: неверно. +' + scoreDelta + ' очков. Повторный ответ невозможен.';
-    lockInputs();
-  });
-
-  socket.on('answer:rejected', ({ reason, message }) => {
-    answerResultBox.style.display = 'block';
-    if (reason === 'already_answered') {
-      answerResultBox.innerText = 'Повторный ответ невозможен.';
-    } else if (reason === 'question_closed') {
-      answerResultBox.innerText = 'Вопрос завершен. Ответы больше не принимаются.';
-      setQuestionStatus('closed');
-    } else {
-      answerResultBox.innerText = message || 'Ответ не принят';
-    }
-  });
-
-  socket.on('leaderboard:update', ({ leaderboard }) => {
-    renderLeaderboard(leaderboard);
-  });
-
-  function setQuestionStatus(status, reason) {
-    if (status === 'active') {
-      questionStatusBox.innerText = 'Прием ответов открыт';
-    } else if (status === 'closed') {
-      questionStatusBox.innerText = 'Вопрос завершен. Прием ответов закрыт.' + (reason ? ' (' + reason + ')' : '');
-      stopTimer();
-    } else {
-      questionStatusBox.innerText = 'Нет активного вопроса';
-    }
-  }
-
-  function lockInputs() {
-    root.querySelectorAll('button, input').forEach((el) => {
-      el.disabled = true;
+    socket.emit('player:join', {
+      gameCode: game.code,
+      playerId: player.id,
+      sessionToken: player.sessionToken
     });
-  }
 
-  function stopTimer() {
-    if (timerInterval) {
-      clearInterval(timerInterval);
-      timerInterval = null;
-    }
-  }
+    socket.on('question:show', (question) => {
+      currentQuestion = question;
+      renderQuestion(question);
+    });
 
-  function startTimer(timerEndsAt) {
-    stopTimer();
+    socket.on('question:closed', ({ questionId, reason }) => {
+      if (currentQuestion && currentQuestion.id === questionId) {
+        currentQuestion.status = 'closed';
+      }
+      lockInputs();
+      setQuestionStatus('closed', reason);
+    });
 
-    if (!timerEndsAt) {
-      timerBox.style.display = 'none';
-      timerBox.innerText = '';
-      return;
-    }
+    socket.on('buzz:winner', ({ playerId }) => {
+      const div = document.createElement('div');
+      div.className = 'notice';
+      div.innerText = playerId === player.id ? 'Вы нажали первым! Ответ принят.' : 'Кто-то уже нажал первым';
+      root.appendChild(div);
+      lockInputs();
+    });
 
-    timerBox.style.display = 'block';
+    socket.on('answer:result', ({ questionId, isCorrect, scoreDelta }) => {
+      answeredQuestionIds.add(questionId);
+      answerResultBox.style.display = 'block';
+      answerResultBox.innerText = isCorrect
+        ? 'Ответ принят: верно! +' + scoreDelta + ' очков. Повторный ответ невозможен.'
+        : 'Ответ принят: неверно. +' + scoreDelta + ' очков. Повторный ответ невозможен.';
+      lockInputs();
+    });
 
-    function tick() {
-      const msLeft = timerEndsAt - Date.now();
-      const secLeft = Math.max(0, Math.ceil(msLeft / 1000));
-      timerBox.innerText = 'Осталось времени: ' + secLeft + ' сек.';
+    socket.on('answer:rejected', ({ reason, message }) => {
+      answerResultBox.style.display = 'block';
+      if (reason === 'already_answered') {
+        answerResultBox.innerText = 'Повторный ответ невозможен.';
+      } else if (reason === 'question_closed') {
+        answerResultBox.innerText = 'Вопрос завершен. Ответы больше не принимаются.';
+        setQuestionStatus('closed');
+      } else {
+        answerResultBox.innerText = message || 'Ответ не принят';
+      }
+    });
 
-      if (msLeft <= 0) {
+    socket.on('leaderboard:update', ({ leaderboard }) => {
+      renderLeaderboard(leaderboard);
+    });
+
+    function setQuestionStatus(status, reason) {
+      if (status === 'active') {
+        questionStatusBox.innerText = 'Прием ответов открыт';
+      } else if (status === 'closed') {
+        questionStatusBox.innerText = 'Вопрос завершен. Прием ответов закрыт.' + (reason ? ' (' + reason + ')' : '');
         stopTimer();
-        timerBox.innerText = 'Время вышло';
+      } else {
+        questionStatusBox.innerText = 'Нет активного вопроса';
       }
     }
 
-    tick();
-    timerInterval = setInterval(tick, 250);
-  }
+    function lockInputs() {
+      root.querySelectorAll('button, input').forEach((el) => {
+        el.disabled = true;
+      });
+    }
 
-  function canSubmit(question) {
-    if (!question || question.status !== 'active') return false;
-    return !answeredQuestionIds.has(question.id);
-  }
+    function stopTimer() {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+    }
 
-  function renderQuestion(question) {
-    root.innerHTML = '';
-    answerResultBox.style.display = 'none';
-    answerResultBox.innerText = '';
-    questionTitle.innerText = question.title;
-    setQuestionStatus(question.status || 'active');
-    startTimer(question.timerEndsAt);
+    function startTimer(timerEndsAt) {
+      stopTimer();
 
-    const submitAllowed = canSubmit(question);
+      if (!timerEndsAt) {
+        timerBox.style.display = 'none';
+        timerBox.innerText = '';
+        return;
+      }
 
-    if (question.type === 'abcd') {
-      question.payload.options.forEach((option, index) => {
+      timerBox.style.display = 'block';
+
+      function tick() {
+        const msLeft = timerEndsAt - Date.now();
+        const secLeft = Math.max(0, Math.ceil(msLeft / 1000));
+        timerBox.innerText = 'Осталось времени: ' + secLeft + ' сек.';
+
+        if (msLeft <= 0) {
+          stopTimer();
+          timerBox.innerText = 'Время вышло';
+        }
+      }
+
+      tick();
+      timerInterval = setInterval(tick, 250);
+    }
+
+    function canSubmit(question) {
+      if (!question || question.status !== 'active') return false;
+      return !answeredQuestionIds.has(question.id);
+    }
+
+    function renderQuestionImage(payload) {
+      if (!payload || !payload.imageUrl) return;
+      const image = document.createElement('img');
+      image.src = payload.imageUrl;
+      image.alt = 'Изображение вопроса';
+      image.className = 'question-media';
+      root.appendChild(image);
+    }
+
+    function renderQuestion(question) {
+      root.innerHTML = '';
+      answerResultBox.style.display = 'none';
+      answerResultBox.innerText = '';
+      questionTitle.innerText = question.title;
+      setQuestionStatus(question.status || 'active');
+      startTimer(question.timerEndsAt);
+      renderQuestionImage(question.payload);
+
+      const submitAllowed = canSubmit(question);
+
+      if (question.type === 'abcd') {
+        question.payload.options.forEach((option, index) => {
+          const btn = document.createElement('button');
+          btn.className = 'button option';
+          btn.innerText = option;
+          btn.disabled = !submitAllowed;
+          btn.onclick = () => {
+            if (!canSubmit(question)) return;
+            socket.emit('answer:submit', {
+              gameCode: game.code,
+              playerId: player.id,
+              answer: { optionIndex: index }
+            });
+            lockInputs();
+          };
+          root.appendChild(btn);
+        });
+      } else if (question.type === 'text') {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = 'Ваш ответ';
+        input.disabled = !submitAllowed;
         const btn = document.createElement('button');
-        btn.className = 'button option';
-        btn.innerText = option;
+        btn.className = 'button';
+        btn.innerText = 'Ответить';
         btn.disabled = !submitAllowed;
         btn.onclick = () => {
           if (!canSubmit(question)) return;
           socket.emit('answer:submit', {
             gameCode: game.code,
             playerId: player.id,
-            answer: { optionIndex: index }
+            answer: { text: input.value }
+          });
+          lockInputs();
+        };
+        root.appendChild(input);
+        root.appendChild(btn);
+      } else if (question.type === 'number') {
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.placeholder = 'Введите число';
+        input.disabled = !submitAllowed;
+        const btn = document.createElement('button');
+        btn.className = 'button';
+        btn.innerText = 'Ответить';
+        btn.disabled = !submitAllowed;
+        btn.onclick = () => {
+          if (!canSubmit(question)) return;
+          socket.emit('answer:submit', {
+            gameCode: game.code,
+            playerId: player.id,
+            answer: { number: Number(input.value) }
+          });
+          lockInputs();
+        };
+        root.appendChild(input);
+        root.appendChild(btn);
+      } else if (question.type === 'buzz') {
+        const btn = document.createElement('button');
+        btn.className = 'button big-button';
+        btn.innerText = 'ЖМИ!';
+        btn.disabled = !submitAllowed;
+        btn.onclick = () => {
+          if (!canSubmit(question)) return;
+          socket.emit('buzz:press', {
+            gameCode: game.code,
+            playerId: player.id
           });
           lockInputs();
         };
         root.appendChild(btn);
+      }
+
+      if (!submitAllowed) {
+        answerResultBox.style.display = 'block';
+        answerResultBox.innerText = question.status === 'closed'
+          ? 'Вопрос завершен. Ответы больше не принимаются.'
+          : 'Ответ уже отправлен. Повторный ответ невозможен.';
+      }
+    }
+
+    function renderLeaderboard(leaderboard) {
+      leaderboardBody.innerHTML = '';
+      leaderboard.forEach((row) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td>' + row.place + '</td><td>' + row.name + '</td><td>' + row.score + '</td>';
+        leaderboardBody.appendChild(tr);
       });
-    } else if (question.type === 'text') {
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.placeholder = 'Ваш ответ';
-      input.disabled = !submitAllowed;
-      const btn = document.createElement('button');
-      btn.className = 'button';
-      btn.innerText = 'Ответить';
-      btn.disabled = !submitAllowed;
-      btn.onclick = () => {
-        if (!canSubmit(question)) return;
-        socket.emit('answer:submit', {
-          gameCode: game.code,
-          playerId: player.id,
-          answer: { text: input.value }
-        });
-        lockInputs();
-      };
-      root.appendChild(input);
-      root.appendChild(btn);
-    } else if (question.type === 'number') {
-      const input = document.createElement('input');
-      input.type = 'number';
-      input.placeholder = 'Введите число';
-      input.disabled = !submitAllowed;
-      const btn = document.createElement('button');
-      btn.className = 'button';
-      btn.innerText = 'Ответить';
-      btn.disabled = !submitAllowed;
-      btn.onclick = () => {
-        if (!canSubmit(question)) return;
-        socket.emit('answer:submit', {
-          gameCode: game.code,
-          playerId: player.id,
-          answer: { number: Number(input.value) }
-        });
-        lockInputs();
-      };
-      root.appendChild(input);
-      root.appendChild(btn);
-    } else if (question.type === 'buzz') {
-      const btn = document.createElement('button');
-      btn.className = 'button big-button';
-      btn.innerText = 'ЖМИ!';
-      btn.disabled = !submitAllowed;
-      btn.onclick = () => {
-        if (!canSubmit(question)) return;
-        socket.emit('buzz:press', {
-          gameCode: game.code,
-          playerId: player.id
-        });
-        lockInputs();
-      };
-      root.appendChild(btn);
     }
-
-    if (!submitAllowed) {
-      answerResultBox.style.display = 'block';
-      answerResultBox.innerText = question.status === 'closed'
-        ? 'Вопрос завершен. Ответы больше не принимаются.'
-        : 'Ответ уже отправлен. Повторный ответ невозможен.';
-    }
-  }
-
-  function renderLeaderboard(leaderboard) {
-    leaderboardBody.innerHTML = '';
-    leaderboard.forEach((row) => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = '<td>' + row.place + '</td><td>' + row.name + '</td><td>' + row.score + '</td>';
-      leaderboardBody.appendChild(tr);
-    });
-  }
-</script>
-<%- include('partials/footer') %>
+  </script>
+</body>
+</html>

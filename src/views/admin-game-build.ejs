@@ -104,12 +104,16 @@
                 <div class="question-add-row">
                   <input type="number" name="points" min="10" step="10" value="100" required />
                   <input type="text" name="title" maxlength="200" placeholder="Добавить вопрос" required />
-                  <button class="button" type="submit">Добавить вопрос</button>
                 </div>
                 <div class="upload-row">
                   <button class="button button-outline image-upload-btn" type="button">Добавить картинку вопроса</button>
                   <input type="file" accept="image/*" class="image-file-input" style="display:none" />
                   <span class="muted image-status"></span>
+                </div>
+                <div class="image-preview-wrap" style="display:none">
+                  <a href="#" target="_blank" rel="noopener noreferrer" class="image-preview-link">
+                    <img src="" alt="preview" class="image-preview-thumb" />
+                  </a>
                 </div>
                 <div class="options-editor" data-options-editor>
                   <div class="options-list-box" data-options-list></div>
@@ -117,6 +121,7 @@
                 </div>
                 <label>Комментарий для ведущего</label>
                 <textarea name="hostComment" rows="2" placeholder="Комментарий для ведущего"></textarea>
+                <button class="button" type="submit">Добавить вопрос</button>
               <% } else { %>
                 <div class="question-add-row">
                   <input type="text" name="title" maxlength="200" placeholder="Добавить вопрос" required />
@@ -172,6 +177,11 @@
                         <button class="button button-outline image-upload-btn" type="button">Картинка вопроса</button>
                         <input type="file" accept="image/*" class="image-file-input" style="display:none" />
                         <span class="muted image-status"><%= question.payload.imageUrl ? 'Изображение загружено' : '' %></span>
+                      </div>
+                      <div class="image-preview-wrap" <%= question.payload.imageUrl ? '' : 'style="display:none"' %>>
+                        <a href="<%= question.payload.imageUrl || '#' %>" target="_blank" rel="noopener noreferrer" class="image-preview-link">
+                          <img src="<%= question.payload.imageUrl || '' %>" alt="preview" class="image-preview-thumb" />
+                        </a>
                       </div>
                       <div class="options-editor" data-options-editor>
                         <div class="options-list-box" data-options-list>
@@ -295,12 +305,20 @@
     const fileInput = form.querySelector('.image-file-input');
     const imageUrlInput = form.querySelector('.image-url-input');
     const statusEl = form.querySelector('.image-status');
+    const previewWrap = form.querySelector('.image-preview-wrap');
+    const previewLink = form.querySelector('.image-preview-link');
+    const previewThumb = form.querySelector('.image-preview-thumb');
     if (!button || !fileInput || !imageUrlInput || !statusEl) return;
 
     button.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', async () => {
       try {
         await uploadQuestionImage(fileInput, imageUrlInput, statusEl);
+        if (previewWrap && previewLink && previewThumb) {
+          previewWrap.style.display = 'block';
+          previewLink.href = imageUrlInput.value;
+          previewThumb.src = imageUrlInput.value;
+        }
       } catch (error) {
         statusEl.textContent = error.message || 'Ошибка загрузки';
       }
@@ -312,14 +330,46 @@
     article.className = 'build-question compact';
     article.dataset.questionId = String(question.id);
     article.draggable = true;
-    article.innerHTML =
+    const options = Array.isArray(question.payload && question.payload.options) ? question.payload.options : [];
+    const correct = Number(question.payload && question.payload.correct);
+    const optionsHtml = options.map((option, index) => {
+      const letter = String.fromCharCode(65 + index);
+      const checked = correct === index ? 'checked' : '';
+      return '<div class="option-row" data-option-row>' +
+        '<label><input type="radio" name="correct" value="' + index + '" ' + checked + ' /> ' + letter + '</label>' +
+        '<input type="text" name="options" value="' + escapeHtml(option) + '" required />' +
+        '<button type="button" class="button button-outline icon-button remove-option-btn">🗑</button>' +
+      '</div>';
+    }).join('');
+    const imageUrl = question.payload && question.payload.imageUrl ? question.payload.imageUrl : '';
+    const headerHtml =
       '<div class="build-question-header compact">' +
-      '<span><strong>•</strong> ' + escapeHtml(question.title) + ' <span class="muted">(' + question.points + ')</span></span>' +
-      '<div class="row wrap">' +
-      '<button class="button button-outline icon-button" type="button" title="Перетащить">↕</button>' +
-      '<form method="post" action="/admin/games/' + gameId + '/questions/' + question.id + '/copy" style="display:inline"><button class="button button-outline icon-button" type="submit" title="Копировать">⧉</button></form>' +
-      '<form method="post" action="/admin/games/' + gameId + '/questions/' + question.id + '/delete" style="display:inline" onsubmit="return confirm(\'Удалить вопрос?\');"><button class="button button-outline icon-button" type="submit" title="Удалить">🗑</button></form>' +
-      '</div></div>';
+        '<span><strong>•</strong> ' + escapeHtml(question.title) + ' <span class="muted">(' + question.points + ')</span></span>' +
+        '<div class="row wrap">' +
+          '<button class="button button-outline icon-button" type="button" title="Перетащить">↕</button>' +
+          '<form method="post" action="/admin/games/' + gameId + '/questions/' + question.id + '/copy" style="display:inline"><button class="button button-outline icon-button" type="submit" title="Копировать">⧉</button></form>' +
+          '<form method="post" action="/admin/games/' + gameId + '/questions/' + question.id + '/delete" style="display:inline" onsubmit="return confirm(\\'Удалить вопрос?\\');"><button class="button button-outline icon-button" type="submit" title="Удалить">🗑</button></form>' +
+        '</div>' +
+      '</div>';
+    if (question.type !== 'abcd') {
+      article.innerHTML = headerHtml +
+        '<a class="button button-outline" href="/admin/games/' + gameId + '/questions/' + question.id + '/edit">Редактировать</a>';
+      return article;
+    }
+    article.innerHTML = headerHtml +
+      '<details><summary>Редактировать вопрос</summary>' +
+        '<form method="post" action="/admin/games/' + gameId + '/questions/' + question.id + '/compact-edit" class="compact-form question-edit-form" data-edit-abcd>' +
+          '<input type=\"number\" name=\"points\" min=\"10\" step=\"10\" value=\"' + question.points + '\" required />' +
+          '<input type=\"text\" name=\"title\" maxlength=\"200\" value=\"' + escapeHtml(question.title) + '\" required />' +
+          '<input type=\"hidden\" name=\"imageUrl\" value=\"' + escapeHtml(imageUrl) + '\" class=\"image-url-input\" />' +
+          '<div class=\"upload-row\"><button class=\"button button-outline image-upload-btn\" type=\"button\">Картинка вопроса</button><input type=\"file\" accept=\"image/*\" class=\"image-file-input\" style=\"display:none\" /><span class=\"muted image-status\">' + (imageUrl ? 'Изображение загружено' : '') + '</span></div>' +
+          '<div class=\"image-preview-wrap\" style=\"display:' + (imageUrl ? 'block' : 'none') + '\"><a href=\"' + (imageUrl || '#') + '\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"image-preview-link\"><img src=\"' + (imageUrl || '') + '\" alt=\"preview\" class=\"image-preview-thumb\" /></a></div>' +
+          '<div class=\"options-editor\" data-options-editor><div class=\"options-list-box\" data-options-list>' + optionsHtml + '</div><button class=\"button button-outline add-option-btn\" type=\"button\">+ Добавить вариант</button></div>' +
+          '<label>Комментарий для ведущего</label><textarea name=\"hostComment\" rows=\"2\">' + escapeHtml(question.payload && question.payload.hostComment ? question.payload.hostComment : '') + '</textarea>' +
+          '<label>Лимит времени (сек)</label><input type=\"number\" name=\"timeLimitSec\" min=\"1\" value=\"' + Number((question.payload && question.payload.timeLimitSec) || 15) + '\" />' +
+          '<button class=\"button\" type=\"submit\">Сохранить</button>' +
+        '</form>' +
+      '</details>';
     return article;
   }
 
@@ -408,6 +458,11 @@
           const questionCard = createQuestionCard(data.question, <%= game.id %>);
           list.appendChild(questionCard);
           bindDnDForQuestion(questionCard, list, <%= game.id %>);
+          const editForm = questionCard.querySelector('.question-edit-form');
+          if (editForm) {
+            initOptionsEditor(editForm);
+            wireImageUpload(editForm);
+          }
 
           form.querySelector('input[name="title"]').value = '';
 

@@ -360,6 +360,7 @@ router.post("/admin/games/:id/questions/create", requireAdmin, async (req, res) 
       title,
       type: round.question_type,
       points: points > 0 ? points : 100,
+      payload,
     },
   });
 });
@@ -683,13 +684,6 @@ router.get("/admin/games/:id/build", requireAdmin, async (req, res) => {
   if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
 
   let rounds = await all("SELECT * FROM rounds WHERE game_id = ? ORDER BY sort_order ASC, id ASC", [game.id]);
-  if (!rounds.length) {
-    await run(
-      "INSERT INTO rounds (game_id, name, question_type, question_count, settings_json, sort_order) VALUES (?, 'Раунд 1', 'abcd', 9999, '{}', 1)",
-      [game.id]
-    );
-    rounds = await all("SELECT * FROM rounds WHERE game_id = ? ORDER BY sort_order ASC, id ASC", [game.id]);
-  }
 
   const questions = await all(
     `SELECT q.*, r.name AS round_name, r.question_type AS round_question_type
@@ -729,13 +723,6 @@ router.get("/admin/games/:id/control", requireAdmin, async (req, res) => {
   if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
 
   let rounds = await all("SELECT * FROM rounds WHERE game_id = ? ORDER BY sort_order ASC, id ASC", [game.id]);
-  if (!rounds.length) {
-    await run(
-      "INSERT INTO rounds (game_id, name, question_type, question_count, settings_json, sort_order) VALUES (?, 'Раунд 1', 'abcd', 9999, '{}', 1)",
-      [game.id]
-    );
-    rounds = await all("SELECT * FROM rounds WHERE game_id = ? ORDER BY sort_order ASC, id ASC", [game.id]);
-  }
   const sessions = await all(
     "SELECT * FROM game_sessions WHERE game_id = ? ORDER BY session_number DESC, id DESC",
     [game.id]

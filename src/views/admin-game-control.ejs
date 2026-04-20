@@ -11,7 +11,7 @@
     Нет активного вопроса.
   </div>
   <div class="row wrap">
-    <button class="button" id="start-round">Запустить раунд</button>
+    <button class="button" id="start-round" <%= rounds.length ? '' : 'disabled' %>>Запустить раунд</button>
     <button class="button" id="next-question">Следующий вопрос</button>
     <button class="button" id="close-question">Закрыть вопрос</button>
     <button class="button" id="reveal-answer">Показать верный ответ</button>
@@ -19,11 +19,15 @@
   </div>
   <div class="inline-form">
     <label for="start-round-id">Раунд:</label>
-    <select id="start-round-id">
-      <% rounds.forEach((round) => { %>
-      <option value="<%= round.id %>"><%= round.name %> (<%= round.question_type %>)</option>
-      <% }) %>
-    </select>
+    <% if (!rounds.length) { %>
+      <p class="muted">Сначала добавьте раунд в разделе «Создание игры».</p>
+    <% } else { %>
+      <select id="start-round-id">
+        <% rounds.forEach((round) => { %>
+        <option value="<%= round.id %>"><%= round.name %> (<%= round.question_type %>)</option>
+        <% }) %>
+      </select>
+    <% } %>
   </div>
 </section>
 

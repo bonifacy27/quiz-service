@@ -302,6 +302,48 @@ router.post("/admin/games/:id/questions", requireAdmin, async (req, res) => {
   res.redirect(`/admin/games/${game.id}/build`);
 });
 
+router.post("/admin/games/:id/questions/create", requireAdmin, async (req, res) => {
+  await ensureExtendedGameSchema();
+  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).json({ error: "Игра не найдена" });
+
+  const type = String(req.body.type || "").trim();
+  const title = String(req.body.title || "").trim().slice(0, 200);
+  if (!title) return res.status(400).json({ error: "Введите заголовок вопроса" });
+
+  const roundId = Number(req.body.roundId);
+  const points = Number(req.body.points || 100);
+  const round = await get("SELECT * FROM rounds WHERE id = ? AND game_id = ?", [roundId, game.id]);
+  if (!round) return res.status(400).json({ error: "Выберите раунд" });
+  if (type !== round.question_type) {
+    return res.status(400).json({ error: `В раунде "${round.name}" разрешены только вопросы типа ${round.question_type}` });
+  }
+
+  const { payload, error } = buildQuestionPayload(round.question_type, req.body);
+  if (error) return res.status(400).json({ error });
+
+  const order = await get("SELECT COALESCE(MAX(sort_order), 0) AS maxOrder FROM questions WHERE game_id = ? AND round_id = ?", [
+    game.id,
+    round.id,
+  ]);
+  const result = await run(
+    `INSERT INTO questions
+      (game_id, round_id, type, title, payload_json, points, sort_order)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [game.id, roundId, round.question_type, title, JSON.stringify(payload), points > 0 ? points : 100, Number(order.maxOrder || 0) + 1]
+  );
+
+  return res.json({
+    ok: true,
+    question: {
+      id: result.lastID,
+      title,
+      type: round.question_type,
+      points: points > 0 ? points : 100,
+    },
+  });
+});
+
 router.post("/admin/games/:id/questions/reorder", requireAdmin, async (req, res) => {
   const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
   if (!game) return res.status(404).json({ error: "Игра не найдена" });
@@ -466,7 +508,7 @@ router.post("/admin/games/:id/rounds", requireAdmin, async (req, res) => {
   }
 
   const order = await get("SELECT COALESCE(MAX(sort_order), 0) AS maxOrder FROM rounds WHERE game_id = ?", [game.id]);
-  await run(
+  const roundResult = await run(
     "INSERT INTO rounds (game_id, name, question_type, question_count, settings_json, sort_order) VALUES (?, ?, ?, 9999, ?, ?)",
     [
     game.id,
@@ -477,7 +519,7 @@ router.post("/admin/games/:id/rounds", requireAdmin, async (req, res) => {
     ]
   );
 
-  res.redirect(`/admin/games/${game.id}/build`);
+  res.redirect(`/admin/games/${game.id}/build?editRound=${roundResult.lastID}`);
 });
 
 router.post("/admin/games/:id/rounds/reorder", requireAdmin, async (req, res) => {
@@ -617,11 +659,13 @@ router.get("/admin/games/:id/build", requireAdmin, async (req, res) => {
     ...round,
     settings: normalizeRoundSettings(round.settings_json),
   }));
+  const editRoundId = Number(req.query.editRound || 0);
 
   res.render("admin-game-build", {
     game,
     rounds: roundsWithSettings,
     questions,
+    editRoundId,
     user: req.session.user,
   });
 });

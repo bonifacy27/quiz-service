@@ -10,17 +10,6 @@
 
 <section class="card">
   <h2>Раунды</h2>
-  <form method="post" action="/admin/games/<%= game.id %>/rounds" class="round-add-inline">
-    <input type="text" name="name" maxlength="120" placeholder="Название раунда" required />
-    <select name="questionType" required>
-      <option value="abcd">ABCD</option>
-      <option value="text">TEXT</option>
-      <option value="number">NUMBER</option>
-      <option value="buzz">BUZZ</option>
-    </select>
-    <button class="button" type="submit">Добавить раунд</button>
-  </form>
-
   <% if (!rounds.length) { %>
     <p>Раундов пока нет.</p>
   <% } else { %>
@@ -212,6 +201,10 @@
       <% }) %>
     </div>
   <% } %>
+
+  <form method="post" action="/admin/games/<%= game.id %>/rounds" class="round-add-inline">
+    <button class="button" type="submit">Добавить раунд</button>
+  </form>
 </section>
 
 <script>
@@ -348,7 +341,7 @@
         '<div class="row wrap">' +
           '<button class="button button-outline icon-button" type="button" title="Перетащить">↕</button>' +
           '<form method="post" action="/admin/games/' + gameId + '/questions/' + question.id + '/copy" style="display:inline"><button class="button button-outline icon-button" type="submit" title="Копировать">⧉</button></form>' +
-          '<form method="post" action="/admin/games/' + gameId + '/questions/' + question.id + '/delete" style="display:inline" onsubmit="return confirm(\\'Удалить вопрос?\\');"><button class="button button-outline icon-button" type="submit" title="Удалить">🗑</button></form>' +
+          '<form method="post" action="/admin/games/' + gameId + '/questions/' + question.id + '/delete" style="display:inline"><button class="button button-outline icon-button" type="submit" title="Удалить">🗑</button></form>' +
         '</div>' +
       '</div>';
     if (question.type !== 'abcd') {

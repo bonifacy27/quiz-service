@@ -544,15 +544,15 @@ router.post("/admin/games/:id/rounds", requireAdmin, async (req, res) => {
   const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
   if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
 
-  const name = String(req.body.name || "").trim().slice(0, 120);
-  const questionType = String(req.body.questionType || "").trim();
+  const nextRoundOrder = await get("SELECT COALESCE(MAX(sort_order), 0) AS maxOrder FROM rounds WHERE game_id = ?", [game.id]);
+  const defaultRoundName = `Раунд ${Number(nextRoundOrder.maxOrder || 0) + 1}`;
+  const name = String(req.body.name || "").trim().slice(0, 120) || defaultRoundName;
+  const questionType = String(req.body.questionType || "abcd").trim();
   const settings = parseRoundSettings(req.body);
-  if (!name) return res.status(400).render("error", { message: "Введите название раунда" });
   if (!["abcd", "text", "number", "buzz"].includes(questionType)) {
     return res.status(400).render("error", { message: "Выберите корректный тип вопросов раунда" });
   }
 
-  const order = await get("SELECT COALESCE(MAX(sort_order), 0) AS maxOrder FROM rounds WHERE game_id = ?", [game.id]);
   const roundResult = await run(
     "INSERT INTO rounds (game_id, name, question_type, question_count, settings_json, sort_order) VALUES (?, ?, ?, 9999, ?, ?)",
     [
@@ -560,7 +560,7 @@ router.post("/admin/games/:id/rounds", requireAdmin, async (req, res) => {
     name,
     questionType,
     JSON.stringify(settings),
-    Number(order.maxOrder || 0) + 1,
+    Number(nextRoundOrder.maxOrder || 0) + 1,
     ]
   );
 
@@ -673,6 +673,17 @@ router.post("/admin/games/:id/rounds/:roundId/copy", requireAdmin, async (req, r
       ]
     );
   }
+
+  res.redirect(`/admin/games/${game.id}/build`);
+});
+
+
+router.get("/admin/games/:id/build", requireAdmin, async (req, res) => {
+  await ensureExtendedGameSchema();
+  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
+
+  let rounds = await all("SELECT * FROM rounds WHERE game_id = ? ORDER BY sort_order ASC, id ASC", [game.id]);
 
   res.redirect(`/admin/games/${game.id}/build`);
 });

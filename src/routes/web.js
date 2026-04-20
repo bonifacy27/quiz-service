@@ -1,6 +1,8 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
+const path = require("path");
+const multer = require("multer");
 const QRCode = require("qrcode");
 const config = require("../config");
 const { get, all, run } = require("../db");
@@ -8,6 +10,12 @@ const { ensureGame } = require("../services/gameState");
 const { ensureExtendedGameSchema } = require("../services/schemaGuard");
 
 const router = express.Router();
+const upload = multer({
+  dest: config.uploadDir,
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+  },
+});
 
 function requireAdmin(req, res, next) {
   if (!req.session.user) return res.redirect("/admin/login");
@@ -24,21 +32,19 @@ function getPublicBaseUrl(req) {
 
 function buildQuestionPayload(type, body) {
   const timeLimitSec = Number(body.timeLimitSec || 0);
+  const imageUrl = String(body.imageUrl || "").trim();
+  const hostComment = String(body.hostComment || "").trim().slice(0, 2000);
 
   if (type === "abcd") {
-    const options = [
-      String(body.option1 || "").trim(),
-      String(body.option2 || "").trim(),
-      String(body.option3 || "").trim(),
-      String(body.option4 || "").trim(),
-    ];
+    const rawOptions = Array.isArray(body.options) ? body.options : [body.option1, body.option2, body.option3, body.option4];
+    const options = rawOptions.map((value) => String(value || "").trim()).filter(Boolean);
 
-    if (options.some((opt) => !opt)) {
-      return { error: "Для типа abcd заполните 4 варианта ответа" };
+    if (options.length < 2) {
+      return { error: "Для типа abcd заполните минимум 2 варианта ответа" };
     }
 
-    const correct = Number(body.correct);
-    if (![0, 1, 2, 3].includes(correct)) {
+    const correct = Number(body.correct ?? body.correctIndex);
+    if (!Number.isInteger(correct) || correct < 0 || correct >= options.length) {
       return { error: "Для типа abcd выберите правильный ответ" };
     }
 
@@ -47,6 +53,8 @@ function buildQuestionPayload(type, body) {
         options,
         correct,
         timeLimitSec: timeLimitSec > 0 ? timeLimitSec : 15,
+        imageUrl,
+        hostComment,
       },
     };
   }
@@ -59,6 +67,8 @@ function buildQuestionPayload(type, body) {
       payload: {
         correctText,
         timeLimitSec: timeLimitSec > 0 ? timeLimitSec : 30,
+        imageUrl,
+        hostComment,
       },
     };
   }
@@ -73,6 +83,8 @@ function buildQuestionPayload(type, body) {
       payload: {
         correctNumber,
         timeLimitSec: timeLimitSec > 0 ? timeLimitSec : 30,
+        imageUrl,
+        hostComment,
       },
     };
   }
@@ -81,12 +93,20 @@ function buildQuestionPayload(type, body) {
     return {
       payload: {
         timeLimitSec: timeLimitSec > 0 ? timeLimitSec : 10,
+        imageUrl,
+        hostComment,
       },
     };
   }
 
   return { error: "Неподдерживаемый тип вопроса" };
 }
+
+router.post("/admin/uploads/question-image", requireAdmin, upload.single("image"), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "Файл не загружен" });
+  const filename = path.basename(req.file.filename);
+  return res.json({ ok: true, url: `/uploads/${filename}` });
+});
 
 function parseRoundSettings(body = {}) {
   const answerTime = String(body.answerTime || "30");
@@ -452,6 +472,30 @@ router.post("/admin/games/:id/questions/:questionId/edit", requireAdmin, async (
   res.redirect(`/admin/games/${game.id}/build`);
 });
 
+router.post("/admin/games/:id/questions/:questionId/compact-edit", requireAdmin, async (req, res) => {
+  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
+  const question = await get("SELECT * FROM questions WHERE id = ? AND game_id = ?", [req.params.questionId, game.id]);
+  if (!question) return res.status(404).render("error", { message: "Вопрос не найден" });
+
+  const title = String(req.body.title || "").trim().slice(0, 200);
+  const points = Number(req.body.points || 100);
+  if (!title) return res.status(400).render("error", { message: "Введите заголовок вопроса" });
+
+  const { payload, error } = buildQuestionPayload(question.type, req.body);
+  if (error) return res.status(400).render("error", { message: error });
+
+  await run("UPDATE questions SET title = ?, payload_json = ?, points = ? WHERE id = ? AND game_id = ?", [
+    title,
+    JSON.stringify(payload),
+    points > 0 ? points : 100,
+    question.id,
+    game.id,
+  ]);
+
+  res.redirect(`/admin/games/${game.id}/build`);
+});
+
 router.post("/admin/games/:id/questions/:questionId/delete", requireAdmin, async (req, res) => {
   const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
   if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
@@ -655,6 +699,15 @@ router.get("/admin/games/:id/build", requireAdmin, async (req, res) => {
      ORDER BY COALESCE(r.sort_order, 0) ASC, q.sort_order ASC, q.id ASC`,
     [game.id]
   );
+  const questionsWithPayload = questions.map((question) => {
+    let payload = {};
+    try {
+      payload = JSON.parse(question.payload_json || "{}");
+    } catch (_) {
+      payload = {};
+    }
+    return { ...question, payload };
+  });
   const roundsWithSettings = rounds.map((round) => ({
     ...round,
     settings: normalizeRoundSettings(round.settings_json),
@@ -664,7 +717,7 @@ router.get("/admin/games/:id/build", requireAdmin, async (req, res) => {
   res.render("admin-game-build", {
     game,
     rounds: roundsWithSettings,
-    questions,
+    questions: questionsWithPayload,
     editRoundId,
     user: req.session.user,
   });

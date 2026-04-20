@@ -98,32 +98,44 @@
             <form method="post" action="/admin/games/<%= game.id %>/questions/create" class="question-add-form compact-form" data-question-form-round="<%= round.id %>">
               <input type="hidden" name="roundId" value="<%= round.id %>" />
               <input type="hidden" name="type" value="<%= round.question_type %>" />
+              <input type="hidden" name="imageUrl" value="" class="image-url-input" />
 
-              <div class="question-add-row">
-                <input type="text" name="title" maxlength="200" placeholder="Добавить вопрос" required />
-                <input type="number" name="points" min="10" step="10" value="100" required />
-                <button class="button" type="submit">Добавить вопрос</button>
-              </div>
+              <% if (round.question_type === 'abcd') { %>
+                <div class="question-add-row">
+                  <input type="number" name="points" min="10" step="10" value="100" required />
+                  <input type="text" name="title" maxlength="200" placeholder="Добавить вопрос" required />
+                  <button class="button" type="submit">Добавить вопрос</button>
+                </div>
+                <div class="upload-row">
+                  <button class="button button-outline image-upload-btn" type="button">Добавить картинку вопроса</button>
+                  <input type="file" accept="image/*" class="image-file-input" style="display:none" />
+                  <span class="muted image-status"></span>
+                </div>
+                <div class="options-editor" data-options-editor>
+                  <div class="options-list-box" data-options-list></div>
+                  <button class="button button-outline add-option-btn" type="button">+ Добавить вариант</button>
+                </div>
+                <label>Комментарий для ведущего</label>
+                <textarea name="hostComment" rows="2" placeholder="Комментарий для ведущего"></textarea>
+              <% } else { %>
+                <div class="question-add-row">
+                  <input type="text" name="title" maxlength="200" placeholder="Добавить вопрос" required />
+                  <input type="number" name="points" min="10" step="10" value="100" required />
+                  <button class="button" type="submit">Добавить вопрос</button>
+                </div>
+                <details>
+                  <summary>Поля ответа</summary>
+                  <div data-type-block="text" <%= round.question_type === 'text' ? '' : 'style="display:none"' %>>
+                    <input type="text" name="correctText" placeholder="Правильный текст" />
+                  </div>
+                  <div data-type-block="number" <%= round.question_type === 'number' ? '' : 'style="display:none"' %>>
+                    <input type="number" name="correctNumber" step="any" placeholder="Правильное число" />
+                  </div>
+                </details>
+              <% } %>
 
-              <details>
-                <summary>Поля ответа</summary>
-                <div data-type-block="abcd" <%= round.question_type === 'abcd' ? '' : 'style="display:none"' %>>
-                  <input type="text" name="option1" placeholder="Вариант 1" />
-                  <input type="text" name="option2" placeholder="Вариант 2" />
-                  <input type="text" name="option3" placeholder="Вариант 3" />
-                  <input type="text" name="option4" placeholder="Вариант 4" />
-                  <label>Верный вариант</label>
-                  <select name="correct"><option value="0">1</option><option value="1">2</option><option value="2">3</option><option value="3">4</option></select>
-                </div>
-                <div data-type-block="text" <%= round.question_type === 'text' ? '' : 'style="display:none"' %>>
-                  <input type="text" name="correctText" placeholder="Правильный текст" />
-                </div>
-                <div data-type-block="number" <%= round.question_type === 'number' ? '' : 'style="display:none"' %>>
-                  <input type="number" name="correctNumber" step="any" placeholder="Правильное число" />
-                </div>
-                <label>Лимит времени (сек)</label>
-                <input type="number" name="timeLimitSec" min="1" value="15" />
-              </details>
+              <label>Лимит времени (сек)</label>
+              <input type="number" name="timeLimitSec" min="1" value="15" />
             </form>
           </div>
 
@@ -133,12 +145,13 @@
               <p class="muted">В этом раунде пока нет вопросов.</p>
             <% } %>
             <% roundQuestions.forEach((question, questionIndex) => { %>
+              <% const options = Array.isArray(question.payload.options) ? question.payload.options : []; %>
+              <% const correct = Number(question.payload.correct); %>
               <article class="build-question compact" data-question-id="<%= question.id %>" draggable="true">
                 <div class="build-question-header compact">
                   <span><strong><%= questionIndex + 1 %>.</strong> <%= question.title %> <span class="muted">(<%= question.points %>)</span></span>
                   <div class="row wrap">
                     <button class="button button-outline icon-button" type="button" title="Перетащить">↕</button>
-                    <a class="button button-outline icon-button" href="/admin/games/<%= game.id %>/questions/<%= question.id %>/edit" title="Редактировать">✎</a>
                     <form method="post" action="/admin/games/<%= game.id %>/questions/<%= question.id %>/copy" style="display:inline">
                       <button class="button button-outline icon-button" type="submit" title="Копировать">⧉</button>
                     </form>
@@ -147,6 +160,41 @@
                     </form>
                   </div>
                 </div>
+
+                <% if (question.type === 'abcd') { %>
+                  <details>
+                    <summary>Редактировать вопрос</summary>
+                    <form method="post" action="/admin/games/<%= game.id %>/questions/<%= question.id %>/compact-edit" class="compact-form question-edit-form" data-edit-abcd>
+                      <input type="number" name="points" min="10" step="10" value="<%= question.points %>" required />
+                      <input type="text" name="title" maxlength="200" value="<%= question.title %>" required />
+                      <input type="hidden" name="imageUrl" value="<%= question.payload.imageUrl || '' %>" class="image-url-input" />
+                      <div class="upload-row">
+                        <button class="button button-outline image-upload-btn" type="button">Картинка вопроса</button>
+                        <input type="file" accept="image/*" class="image-file-input" style="display:none" />
+                        <span class="muted image-status"><%= question.payload.imageUrl ? 'Изображение загружено' : '' %></span>
+                      </div>
+                      <div class="options-editor" data-options-editor>
+                        <div class="options-list-box" data-options-list>
+                          <% options.forEach((option, optionIndex) => { %>
+                            <div class="option-row" data-option-row>
+                              <label><input type="radio" name="correct" value="<%= optionIndex %>" <%= correct === optionIndex ? 'checked' : '' %> /> <%= String.fromCharCode(65 + optionIndex) %></label>
+                              <input type="text" name="options" value="<%= option %>" required />
+                              <button type="button" class="button button-outline icon-button remove-option-btn">🗑</button>
+                            </div>
+                          <% }) %>
+                        </div>
+                        <button class="button button-outline add-option-btn" type="button">+ Добавить вариант</button>
+                      </div>
+                      <label>Комментарий для ведущего</label>
+                      <textarea name="hostComment" rows="2"><%= question.payload.hostComment || '' %></textarea>
+                      <label>Лимит времени (сек)</label>
+                      <input type="number" name="timeLimitSec" min="1" value="<%= question.payload.timeLimitSec || 15 %>" />
+                      <button class="button" type="submit">Сохранить</button>
+                    </form>
+                  </details>
+                <% } else { %>
+                  <a class="button button-outline" href="/admin/games/<%= game.id %>/questions/<%= question.id %>/edit">Редактировать</a>
+                <% } %>
               </article>
             <% }) %>
           </div>
@@ -170,6 +218,95 @@
     return response.json();
   }
 
+  async function uploadQuestionImage(fileInput, imageUrlInput, statusEl) {
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+    statusEl.textContent = 'Загрузка...';
+    const formData = new FormData();
+    formData.append('image', file);
+    const response = await fetch('/admin/uploads/question-image', { method: 'POST', body: formData });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Ошибка загрузки');
+    imageUrlInput.value = data.url;
+    statusEl.textContent = 'Изображение загружено';
+  }
+
+  function escapeHtml(value) {
+    return String(value || '').replace(/[&<>'\"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
+  }
+
+  function renderOptionRows(container, values, correctIndex) {
+    const options = values.length ? values : ['Вариант A', 'Вариант B', 'Вариант C', 'Вариант D'];
+    container.innerHTML = options.map((option, index) => {
+      const label = String.fromCharCode(65 + index);
+      const checked = Number(correctIndex) === index ? 'checked' : '';
+      return '<div class="option-row" data-option-row>' +
+        '<label><input type="radio" name="correct" value="' + index + '" ' + checked + ' /> ' + label + '</label>' +
+        '<input type="text" name="options" value="' + escapeHtml(option) + '" required />' +
+        '<button type="button" class="button button-outline icon-button remove-option-btn">🗑</button>' +
+      '</div>';
+    }).join('');
+    if (!container.querySelector('input[name="correct"]:checked')) {
+      const first = container.querySelector('input[name="correct"]');
+      if (first) first.checked = true;
+    }
+  }
+
+  function collectOptionValues(container) {
+    return Array.from(container.querySelectorAll('input[name="options"]')).map((input) => input.value);
+  }
+
+  function initOptionsEditor(form) {
+    const editor = form.querySelector('[data-options-editor]');
+    if (!editor) return;
+    const list = editor.querySelector('[data-options-list]');
+    if (!list) return;
+
+    if (!list.querySelector('[data-option-row]')) {
+      renderOptionRows(list, [], 0);
+    }
+
+    editor.querySelector('.add-option-btn')?.addEventListener('click', () => {
+      const values = collectOptionValues(list);
+      values.push('');
+      const checked = list.querySelector('input[name="correct"]:checked');
+      renderOptionRows(list, values, checked ? Number(checked.value) : 0);
+    });
+
+    list.addEventListener('click', (event) => {
+      if (!event.target.classList.contains('remove-option-btn')) return;
+      const row = event.target.closest('[data-option-row]');
+      if (!row) return;
+      const values = collectOptionValues(list);
+      const rowIndex = Array.from(list.querySelectorAll('[data-option-row]')).indexOf(row);
+      if (values.length <= 2) {
+        alert('Нужно минимум 2 варианта');
+        return;
+      }
+      values.splice(rowIndex, 1);
+      const checked = list.querySelector('input[name="correct"]:checked');
+      const checkedIndex = checked ? Number(checked.value) : 0;
+      renderOptionRows(list, values, Math.max(0, Math.min(values.length - 1, checkedIndex === rowIndex ? 0 : checkedIndex)));
+    });
+  }
+
+  function wireImageUpload(form) {
+    const button = form.querySelector('.image-upload-btn');
+    const fileInput = form.querySelector('.image-file-input');
+    const imageUrlInput = form.querySelector('.image-url-input');
+    const statusEl = form.querySelector('.image-status');
+    if (!button || !fileInput || !imageUrlInput || !statusEl) return;
+
+    button.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', async () => {
+      try {
+        await uploadQuestionImage(fileInput, imageUrlInput, statusEl);
+      } catch (error) {
+        statusEl.textContent = error.message || 'Ошибка загрузки';
+      }
+    });
+  }
+
   function createQuestionCard(question, gameId) {
     const article = document.createElement('article');
     article.className = 'build-question compact';
@@ -177,10 +314,9 @@
     article.draggable = true;
     article.innerHTML =
       '<div class="build-question-header compact">' +
-      '<span><strong>•</strong> ' + question.title + ' <span class="muted">(' + question.points + ')</span></span>' +
+      '<span><strong>•</strong> ' + escapeHtml(question.title) + ' <span class="muted">(' + question.points + ')</span></span>' +
       '<div class="row wrap">' +
       '<button class="button button-outline icon-button" type="button" title="Перетащить">↕</button>' +
-      '<a class="button button-outline icon-button" href="/admin/games/' + gameId + '/questions/' + question.id + '/edit" title="Редактировать">✎</a>' +
       '<form method="post" action="/admin/games/' + gameId + '/questions/' + question.id + '/copy" style="display:inline"><button class="button button-outline icon-button" type="submit" title="Копировать">⧉</button></form>' +
       '<form method="post" action="/admin/games/' + gameId + '/questions/' + question.id + '/delete" style="display:inline" onsubmit="return confirm(\'Удалить вопрос?\');"><button class="button button-outline icon-button" type="submit" title="Удалить">🗑</button></form>' +
       '</div></div>';
@@ -247,14 +383,21 @@
 
   function enableCompactAddQuestion() {
     document.querySelectorAll('.question-add-form').forEach((form) => {
+      initOptionsEditor(form);
+      wireImageUpload(form);
+
       form.addEventListener('submit', async (event) => {
         event.preventDefault();
         const activeElement = document.activeElement;
         const activeName = activeElement && activeElement.name ? activeElement.name : null;
-        const activeValue = activeElement && typeof activeElement.value === 'string' ? activeElement.value : '';
 
         const formData = new FormData(form);
-        const payload = Object.fromEntries(formData.entries());
+        const payload = {};
+        formData.forEach((value, key) => {
+          if (payload[key] === undefined) payload[key] = value;
+          else if (Array.isArray(payload[key])) payload[key].push(value);
+          else payload[key] = [payload[key], value];
+        });
 
         try {
           const data = await postJson(form.action, payload);
@@ -266,15 +409,11 @@
           list.appendChild(questionCard);
           bindDnDForQuestion(questionCard, list, <%= game.id %>);
 
-          const titleInput = form.querySelector('input[name="title"]');
-          if (titleInput) titleInput.value = '';
+          form.querySelector('input[name="title"]').value = '';
 
           if (activeName) {
             const sameField = form.querySelector('[name="' + activeName + '"]');
-            if (sameField) {
-              sameField.focus();
-              if (activeName !== 'title' && typeof sameField.value === 'string') sameField.value = activeValue;
-            }
+            if (sameField) sameField.focus();
           }
         } catch (error) {
           alert(error.message || 'Ошибка добавления вопроса');
@@ -282,6 +421,11 @@
       });
     });
   }
+
+  document.querySelectorAll('.question-edit-form').forEach((form) => {
+    initOptionsEditor(form);
+    wireImageUpload(form);
+  });
 
   enableRoundDnD();
   enableQuestionDnD();

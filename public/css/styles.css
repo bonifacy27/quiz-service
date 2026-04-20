@@ -5,9 +5,25 @@ body {
   color: #222;
 }
 
+body.fullscreen-page {
+  background: #0b1220;
+  color: #f8fafc;
+}
+
 .container {
   width: min(1000px, calc(100% - 32px));
   margin: 0 auto;
+}
+
+.fullscreen-stage {
+  width: min(1200px, calc(100% - 24px));
+  margin: 12px auto;
+  display: grid;
+  gap: 12px;
+}
+
+.fullscreen-card {
+  margin-bottom: 0;
 }
 
 .site-header {
@@ -139,6 +155,17 @@ textarea {
   background: #0f172a;
   color: white;
   border-radius: 12px;
+}
+
+.question-media {
+  display: block;
+  max-width: min(100%, 720px);
+  max-height: 42vh;
+  border-radius: 12px;
+  border: 1px solid #334155;
+  margin: 0 auto 14px;
+  object-fit: contain;
+  background: #020617;
 }
 
 .game-screen-box {

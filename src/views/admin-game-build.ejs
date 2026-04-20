@@ -40,51 +40,118 @@
         </div>
 
         <div class="round-editor" data-round-editor>
-          <form method="post" action="/admin/games/<%= game.id %>/rounds/<%= round.id %>/update" class="round-edit-grid compact-form">
-            <label>Название раунда</label>
-            <input type="text" name="name" maxlength="120" value="<%= round.name %>" required />
+          <details class="round-settings-details">
+            <summary><strong>Настройки раунда</strong></summary>
+            <form method="post" action="/admin/games/<%= game.id %>/rounds/<%= round.id %>/update" class="round-edit-grid compact-form">
+              <label>Название раунда</label>
+              <input type="text" name="name" maxlength="120" value="<%= round.name %>" required />
 
-            <label>Тип раунда</label>
-            <select name="questionType" required>
-              <option value="abcd" <%= round.question_type === 'abcd' ? 'selected' : '' %>>abcd</option>
-              <option value="text" <%= round.question_type === 'text' ? 'selected' : '' %>>text</option>
-              <option value="number" <%= round.question_type === 'number' ? 'selected' : '' %>>number</option>
-              <option value="buzz" <%= round.question_type === 'buzz' ? 'selected' : '' %>>buzz</option>
-            </select>
+              <label>Тип раунда</label>
+              <input type="text" value="<%= round.question_type %>" readonly />
+              <input type="hidden" name="questionType" value="<%= round.question_type %>" />
 
-            <label>Описание раунда</label>
-            <textarea name="description" rows="2" placeholder="Описание раунда"><%= round.settings.description %></textarea>
+              <label>Описание раунда</label>
+              <textarea name="description" rows="2" placeholder="Описание раунда"><%= round.settings.description %></textarea>
 
-            <label>Комментарий для ведущего</label>
-            <textarea name="hostComment" rows="2" placeholder="Комментарий для ведущего"><%= round.settings.hostComment %></textarea>
+              <label>Комментарий для ведущего</label>
+              <textarea name="hostComment" rows="2" placeholder="Комментарий для ведущего"><%= round.settings.hostComment %></textarea>
 
-            <div class="round-settings-box">
-              <h4>Настройки раунда</h4>
-              <div class="inline-form">
-                <label>Время на ответ</label>
-                <select name="answerTime">
-                  <option value="30" <%= round.settings.answerTime === '30' ? 'selected' : '' %>>30 секунд</option>
-                  <option value="60" <%= round.settings.answerTime === '60' ? 'selected' : '' %>>60 секунд</option>
-                  <option value="custom" <%= round.settings.answerTime === 'custom' ? 'selected' : '' %>>Другое</option>
-                </select>
+              <div class="round-settings-box">
+                <div class="inline-form">
+                  <label>Время на ответ</label>
+                  <select name="answerTime">
+                    <option value="30" <%= round.settings.answerTime === '30' ? 'selected' : '' %>>30 секунд</option>
+                    <option value="60" <%= round.settings.answerTime === '60' ? 'selected' : '' %>>60 секунд</option>
+                    <option value="custom" <%= round.settings.answerTime === 'custom' ? 'selected' : '' %>>Другое</option>
+                  </select>
+                </div>
+                <div class="inline-form">
+                  <label>Свое время (сек)</label>
+                  <input type="number" name="customAnswerTimeSec" value="<%= round.settings.customAnswerTimeSec %>" min="1" />
+                </div>
+                <div class="inline-form">
+                  <label>Режим игры</label>
+                  <select name="mode">
+                    <option value="normal" <%= round.settings.mode === 'normal' ? 'selected' : '' %>>Обычный</option>
+                    <option value="fastest" <%= round.settings.mode === 'fastest' ? 'selected' : '' %>>Кто быстрее</option>
+                  </select>
+                </div>
+                <label><input type="checkbox" name="allowAnswerChange" <%= round.settings.allowAnswerChange ? 'checked' : '' %> /> Возможность менять ответ</label>
+                <label><input type="checkbox" name="excludeFromTotal" <%= round.settings.excludeFromTotal ? 'checked' : '' %> /> Не учитывать раунд в общем зачете</label>
               </div>
-              <div class="inline-form">
-                <label>Свое время (сек)</label>
-                <input type="number" name="customAnswerTimeSec" value="<%= round.settings.customAnswerTimeSec %>" min="1" />
-              </div>
-              <div class="inline-form">
-                <label>Режим игры</label>
-                <select name="mode">
-                  <option value="normal" <%= round.settings.mode === 'normal' ? 'selected' : '' %>>Обычный</option>
-                  <option value="fastest" <%= round.settings.mode === 'fastest' ? 'selected' : '' %>>Кто быстрее</option>
-                </select>
-              </div>
-              <label><input type="checkbox" name="allowAnswerChange" <%= round.settings.allowAnswerChange ? 'checked' : '' %> /> Возможность менять ответ</label>
-              <label><input type="checkbox" name="excludeFromTotal" <%= round.settings.excludeFromTotal ? 'checked' : '' %> /> Не учитывать раунд в общем зачете</label>
-            </div>
 
-            <button class="button button-outline" type="submit">Сохранить настройки раунда</button>
-          </form>
+              <button class="button button-outline" type="submit">Сохранить настройки раунда</button>
+            </form>
+          </details>
+
+          <div class="question-block-list" data-round-questions="<%= round.id %>">
+            <% const roundQuestions = questions.filter((question) => question.round_id === round.id); %>
+            <% if (!roundQuestions.length) { %>
+              <p class="muted">В этом раунде пока нет вопросов.</p>
+            <% } %>
+            <% roundQuestions.forEach((question, questionIndex) => { %>
+              <% const options = Array.isArray(question.payload.options) ? question.payload.options : []; %>
+              <% const correct = Number(question.payload.correct); %>
+              <article class="build-question compact" data-question-id="<%= question.id %>" draggable="true">
+                <div class="build-question-header compact">
+                  <span><strong>Вопрос <%= questionIndex + 1 %></strong> — <%= question.title %> <span class="muted">(<%= question.points %>)</span></span>
+                  <div class="row wrap">
+                    <button class="button button-outline icon-button" type="button" title="Перетащить">↕</button>
+                    <form method="post" action="/admin/games/<%= game.id %>/questions/<%= question.id %>/copy" style="display:inline">
+                      <button class="button button-outline icon-button" type="submit" title="Копировать">⧉</button>
+                    </form>
+                    <form method="post" action="/admin/games/<%= game.id %>/questions/<%= question.id %>/delete" style="display:inline" onsubmit="return confirm('Удалить вопрос?');">
+                      <button class="button button-outline icon-button" type="submit" title="Удалить">🗑</button>
+                    </form>
+                  </div>
+                </div>
+
+                <% if (question.type === 'abcd') { %>
+                  <details open>
+                    <summary>Редактировать вопрос</summary>
+                    <form method="post" action="/admin/games/<%= game.id %>/questions/<%= question.id %>/compact-edit" class="compact-form question-edit-form" data-edit-abcd>
+                      <input type="number" name="points" min="1" step="1" value="<%= question.points %>" required />
+                      <input type="text" name="title" maxlength="200" value="<%= question.title %>" required />
+                      <input type="hidden" name="imageUrl" value="<%= question.payload.imageUrl || '' %>" class="image-url-input" />
+                      <div class="upload-row">
+                        <button class="button button-outline image-upload-btn" type="button">Картинка вопроса</button>
+                        <input type="file" accept="image/*" class="image-file-input" style="display:none" />
+                        <span class="muted image-status"><%= question.payload.imageUrl ? 'Изображение загружено' : '' %></span>
+                      </div>
+                      <div class="image-preview-wrap" <%= question.payload.imageUrl ? '' : 'style="display:none"' %>>
+                        <a href="<%= question.payload.imageUrl || '#' %>" target="_blank" rel="noopener noreferrer" class="image-preview-link">
+                          <img src="<%= question.payload.imageUrl || '' %>" alt="preview" class="image-preview-thumb" />
+                        </a>
+                      </div>
+                      <div class="options-editor" data-options-editor>
+                        <div class="options-list-box" data-options-list>
+                          <% options.forEach((option, optionIndex) => { %>
+                            <div class="option-row" data-option-row draggable="true">
+                              <label><input type="radio" name="correct" value="<%= optionIndex %>" <%= correct === optionIndex ? 'checked' : '' %> /> <%= String.fromCharCode(65 + optionIndex) %></label>
+                              <input type="text" name="options" value="<%= option %>" required />
+                              <button type="button" class="button button-outline icon-button remove-option-btn" title="Удалить вариант">🗑</button>
+                              <button type="button" class="button button-outline icon-button option-drag-handle" title="Перетащить вариант">☰</button>
+                            </div>
+                          <% }) %>
+                        </div>
+                        <button class="button button-outline add-option-btn" type="button">+ Добавить вариант</button>
+                      </div>
+                      <label>Комментарий для ведущего</label>
+                      <textarea name="hostComment" rows="2"><%= question.payload.hostComment || '' %></textarea>
+                      <label>Лимит времени (сек)</label>
+                      <input type="number" name="timeLimitSec" min="1" value="<%= question.payload.timeLimitSec || 15 %>" />
+                      <button class="button" type="submit">Сохранить</button>
+                    </form>
+                  </details>
+                <% } else { %>
+                  <details open>
+                    <summary>Редактировать вопрос</summary>
+                    <a class="button button-outline" href="/admin/games/<%= game.id %>/questions/<%= question.id %>/edit">Открыть расширенное редактирование</a>
+                  </details>
+                <% } %>
+              </article>
+            <% }) %>
+          </div>
 
           <div class="question-add-sticky">
             <form method="post" action="/admin/games/<%= game.id %>/questions/create" class="question-add-form compact-form" data-question-form-round="<%= round.id %>">
@@ -133,71 +200,6 @@
             </form>
           </div>
 
-          <div class="question-block-list" data-round-questions="<%= round.id %>">
-            <% const roundQuestions = questions.filter((question) => question.round_id === round.id); %>
-            <% if (!roundQuestions.length) { %>
-              <p class="muted">В этом раунде пока нет вопросов.</p>
-            <% } %>
-            <% roundQuestions.forEach((question, questionIndex) => { %>
-              <% const options = Array.isArray(question.payload.options) ? question.payload.options : []; %>
-              <% const correct = Number(question.payload.correct); %>
-              <article class="build-question compact" data-question-id="<%= question.id %>" draggable="true">
-                <div class="build-question-header compact">
-                  <span><strong>Вопрос <%= questionIndex + 1 %></strong> — <%= question.title %> <span class="muted">(<%= question.points %>)</span></span>
-                  <div class="row wrap">
-                    <button class="button button-outline icon-button" type="button" title="Перетащить">↕</button>
-                    <form method="post" action="/admin/games/<%= game.id %>/questions/<%= question.id %>/copy" style="display:inline">
-                      <button class="button button-outline icon-button" type="submit" title="Копировать">⧉</button>
-                    </form>
-                    <form method="post" action="/admin/games/<%= game.id %>/questions/<%= question.id %>/delete" style="display:inline" onsubmit="return confirm('Удалить вопрос?');">
-                      <button class="button button-outline icon-button" type="submit" title="Удалить">🗑</button>
-                    </form>
-                  </div>
-                </div>
-
-                <% if (question.type === 'abcd') { %>
-                  <details>
-                    <summary>Редактировать вопрос</summary>
-                    <form method="post" action="/admin/games/<%= game.id %>/questions/<%= question.id %>/compact-edit" class="compact-form question-edit-form" data-edit-abcd>
-                      <input type="number" name="points" min="1" step="1" value="<%= question.points %>" required />
-                      <input type="text" name="title" maxlength="200" value="<%= question.title %>" required />
-                      <input type="hidden" name="imageUrl" value="<%= question.payload.imageUrl || '' %>" class="image-url-input" />
-                      <div class="upload-row">
-                        <button class="button button-outline image-upload-btn" type="button">Картинка вопроса</button>
-                        <input type="file" accept="image/*" class="image-file-input" style="display:none" />
-                        <span class="muted image-status"><%= question.payload.imageUrl ? 'Изображение загружено' : '' %></span>
-                      </div>
-                      <div class="image-preview-wrap" <%= question.payload.imageUrl ? '' : 'style="display:none"' %>>
-                        <a href="<%= question.payload.imageUrl || '#' %>" target="_blank" rel="noopener noreferrer" class="image-preview-link">
-                          <img src="<%= question.payload.imageUrl || '' %>" alt="preview" class="image-preview-thumb" />
-                        </a>
-                      </div>
-                      <div class="options-editor" data-options-editor>
-                        <div class="options-list-box" data-options-list>
-                          <% options.forEach((option, optionIndex) => { %>
-                            <div class="option-row" data-option-row draggable="true">
-                              <label><input type="radio" name="correct" value="<%= optionIndex %>" <%= correct === optionIndex ? 'checked' : '' %> /> <%= String.fromCharCode(65 + optionIndex) %></label>
-                              <input type="text" name="options" value="<%= option %>" required />
-                              <button type="button" class="button button-outline icon-button remove-option-btn" title="Удалить вариант">🗑</button>
-                              <button type="button" class="button button-outline icon-button option-drag-handle" title="Перетащить вариант">☰</button>
-                            </div>
-                          <% }) %>
-                        </div>
-                        <button class="button button-outline add-option-btn" type="button">+ Добавить вариант</button>
-                      </div>
-                      <label>Комментарий для ведущего</label>
-                      <textarea name="hostComment" rows="2"><%= question.payload.hostComment || '' %></textarea>
-                      <label>Лимит времени (сек)</label>
-                      <input type="number" name="timeLimitSec" min="1" value="<%= question.payload.timeLimitSec || 15 %>" />
-                      <button class="button" type="submit">Сохранить</button>
-                    </form>
-                  </details>
-                <% } else { %>
-                  <a class="button button-outline" href="/admin/games/<%= game.id %>/questions/<%= question.id %>/edit">Редактировать</a>
-                <% } %>
-              </article>
-            <% }) %>
-          </div>
         </div>
       </article>
     <% }) %>
@@ -387,11 +389,11 @@
       '</div>';
     if (question.type !== 'abcd') {
       article.innerHTML = headerHtml +
-        '<a class="button button-outline" href="/admin/games/' + gameId + '/questions/' + question.id + '/edit">Редактировать</a>';
+        '<details open><summary>Редактировать вопрос</summary><a class="button button-outline" href="/admin/games/' + gameId + '/questions/' + question.id + '/edit">Открыть расширенное редактирование</a></details>';
       return article;
     }
     article.innerHTML = headerHtml +
-      '<details><summary>Редактировать вопрос</summary>' +
+      '<details open><summary>Редактировать вопрос</summary>' +
         '<form method="post" action="/admin/games/' + gameId + '/questions/' + question.id + '/compact-edit" class="compact-form question-edit-form" data-edit-abcd>' +
           '<input type="number" name="points" min="1" step="1" value="' + question.points + '" required />' +
           '<input type="text" name="title" maxlength="200" value="' + escapeHtml(question.title) + '" required />' +

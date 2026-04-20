@@ -685,6 +685,17 @@ router.get("/admin/games/:id/build", requireAdmin, async (req, res) => {
 
   let rounds = await all("SELECT * FROM rounds WHERE game_id = ? ORDER BY sort_order ASC, id ASC", [game.id]);
 
+  res.redirect(`/admin/games/${game.id}/build`);
+});
+
+
+router.get("/admin/games/:id/build", requireAdmin, async (req, res) => {
+  await ensureExtendedGameSchema();
+  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
+
+  let rounds = await all("SELECT * FROM rounds WHERE game_id = ? ORDER BY sort_order ASC, id ASC", [game.id]);
+
   const questions = await all(
     `SELECT q.*, r.name AS round_name, r.question_type AS round_question_type
      FROM questions q

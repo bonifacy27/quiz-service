@@ -304,11 +304,10 @@ details > summary {
 }
 
 .question-add-sticky {
-  position: sticky;
-  bottom: 8px;
+  position: static;
   background: #f8fafc;
   padding: 6px 0;
-  z-index: 2;
+  margin-top: 10px;
 }
 
 .question-add-row {
@@ -349,4 +348,70 @@ details > summary {
   .question-add-row {
     grid-template-columns: 1fr;
   }
+}
+
+.modern-rounds {
+  gap: 14px;
+}
+
+.build-round-card {
+  background: #f3f4f6;
+  border-color: #d6d9df;
+  padding: 14px;
+}
+
+.modern-round-header h3 {
+  color: #0284c7;
+  margin: 0;
+}
+
+.modern-round-header p {
+  margin: 4px 0 0;
+}
+
+.round-collapsed-actions {
+  margin-top: 8px;
+}
+
+.round-editor {
+  margin-top: 10px;
+}
+
+.build-round-card.is-collapsed .round-editor {
+  display: none;
+}
+
+.build-round-card.is-open .round-collapsed-actions {
+  display: none;
+}
+
+.round-settings-box h4 {
+  margin: 0 0 8px;
+}
+
+.round-close-btn {
+  margin-left: 0;
+}
+
+.option-row {
+  grid-template-columns: 52px 1fr auto auto;
+}
+
+.option-drag-handle {
+  cursor: grab;
+}
+
+.option-row.dragging {
+  opacity: 0.55;
+}
+
+.image-preview-thumb {
+  max-width: 200px;
+  max-height: 120px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+}
+
+#round-create-form {
+  margin-top: 8px;
 }

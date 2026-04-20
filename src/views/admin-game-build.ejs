@@ -6,89 +6,275 @@
     <a class="button" href="/admin/games/<%= game.id %>/build">Создание игры</a>
     <a class="button button-outline" href="/admin/games/<%= game.id %>/control">Управление игрой</a>
   </p>
-  <p>Здесь собраны только шаги подготовки: раунды и вопросы.</p>
+  <p>Раунды и вопросы редактируются блоками. Раунды и вопросы можно удалять, копировать и менять местами перетаскиванием.</p>
 </section>
 
-<details class="card" open>
-  <summary><strong>Добавить раунд</strong></summary>
-  <form method="post" action="/admin/games/<%= game.id %>/rounds" class="inline-form">
-    <input type="text" name="name" maxlength="120" placeholder="Новый раунд" required />
+<section class="card">
+  <h2>Добавить раунд</h2>
+  <form method="post" action="/admin/games/<%= game.id %>/rounds" class="round-create-grid">
+    <label>Название раунда</label>
+    <input type="text" name="name" maxlength="120" placeholder="Раунд 1" required />
+
+    <label>Тип вопросов</label>
     <select name="questionType" required>
       <option value="abcd">abcd</option>
       <option value="text">text</option>
       <option value="number">number</option>
       <option value="buzz">buzz</option>
     </select>
+
+    <label>Описание раунда</label>
+    <textarea name="description" rows="3" placeholder="Описание для экрана и команды"></textarea>
+
+    <label>Комментарий для ведущего</label>
+    <textarea name="hostComment" rows="2" placeholder="Подсказка для ведущего"></textarea>
+
+    <div class="round-settings-box">
+      <strong>Настройки раунда</strong>
+      <div class="inline-form">
+        <label>Время на ответ</label>
+        <select name="answerTime">
+          <option value="30">30 секунд</option>
+          <option value="60">60 секунд</option>
+          <option value="custom">Другое</option>
+        </select>
+      </div>
+      <div class="inline-form">
+        <label>Свое время (сек)</label>
+        <input type="number" name="customAnswerTimeSec" value="30" min="1" />
+      </div>
+      <div class="inline-form">
+        <label>Режим игры</label>
+        <select name="mode">
+          <option value="normal">Обычный</option>
+          <option value="fastest">Кто быстрее</option>
+        </select>
+      </div>
+      <label><input type="checkbox" name="allowAnswerChange" /> Возможность менять ответ</label>
+      <label><input type="checkbox" name="excludeFromTotal" /> Не учитывать раунд в общем зачете</label>
+    </div>
+
     <button class="button" type="submit">Добавить раунд</button>
   </form>
-</details>
+</section>
 
-<details class="card" open>
-  <summary><strong>Добавить вопрос к раунду</strong></summary>
-  <form method="post" action="/admin/games/<%= game.id %>/questions" id="question-form">
-    <label>Раунд</label>
-    <select name="roundId" id="question-round-id" required>
-      <% rounds.forEach(round => { %>
-        <option value="<%= round.id %>" data-question-type="<%= round.question_type %>"><%= round.name %> (<%= round.question_type %>)</option>
-      <% }) %>
-    </select>
-    <input type="hidden" name="type" id="question-type-hidden" value="<%= rounds[0] ? rounds[0].question_type : 'abcd' %>" />
-
-    <label>Заголовок</label><input type="text" name="title" maxlength="200" required />
-    <label>Очки</label><input type="number" name="points" min="10" step="10" value="100" required />
-
-    <div data-type-block="abcd">
-      <label>Вариант 1</label><input type="text" name="option1" />
-      <label>Вариант 2</label><input type="text" name="option2" />
-      <label>Вариант 3</label><input type="text" name="option3" />
-      <label>Вариант 4</label><input type="text" name="option4" />
-      <label>Правильный вариант</label>
-      <select name="correct"><option value="0">1</option><option value="1">2</option><option value="2">3</option><option value="3">4</option></select>
-    </div>
-    <div data-type-block="text" style="display:none"><label>Правильный текст</label><input type="text" name="correctText" /></div>
-    <div data-type-block="number" style="display:none"><label>Правильное число</label><input type="number" name="correctNumber" step="any" /></div>
-
-    <label>Лимит времени (сек)</label><input type="number" name="timeLimitSec" min="1" value="15" />
-    <button class="button" type="submit">Добавить вопрос</button>
-  </form>
-</details>
-
-<details class="card" open>
-  <summary><strong>Текущие раунды и вопросы</strong></summary>
-  <% if (!questions.length) { %>
-    <p>Вопросов пока нет.</p>
+<section class="card">
+  <h2>Раунды и вопросы</h2>
+  <% if (!rounds.length) { %>
+    <p>Раундов пока нет.</p>
   <% } else { %>
-    <ul>
-      <% questions.forEach((question) => { %>
-        <li>
-          <strong><%= question.round_name || 'Раунд удален' %></strong> —
-          <%= question.title %> [<%= question.type %>] — <%= question.points %> очков
-          <a href="/admin/games/<%= game.id %>/questions/<%= question.id %>/edit">Редактировать</a>
-          <form method="post" action="/admin/games/<%= game.id %>/questions/<%= question.id %>/delete" style="display:inline" onsubmit="return confirm('Удалить вопрос?');">
-            <button type="submit" class="button-link">Удалить</button>
+    <div id="round-list" class="build-round-list">
+      <% rounds.forEach((round, roundIndex) => { %>
+        <article class="build-round" data-round-id="<%= round.id %>" draggable="true">
+          <div class="build-round-header">
+            <h3>Раунд <%= roundIndex + 1 %>: <%= round.name %></h3>
+            <div class="row wrap">
+              <button class="button button-outline drag-handle" type="button" title="Перетащить раунд">↕</button>
+              <form method="post" action="/admin/games/<%= game.id %>/rounds/<%= round.id %>/copy" style="display:inline">
+                <button class="button button-outline" type="submit">Копировать</button>
+              </form>
+              <form method="post" action="/admin/games/<%= game.id %>/rounds/<%= round.id %>/delete" style="display:inline" onsubmit="return confirm('Удалить раунд и все его вопросы?');">
+                <button class="button button-danger" type="submit">Удалить</button>
+              </form>
+            </div>
+          </div>
+
+          <form method="post" action="/admin/games/<%= game.id %>/rounds/<%= round.id %>/update" class="round-edit-grid">
+            <label>Тип вопросов</label>
+            <select name="questionType" required>
+              <option value="abcd" <%= round.question_type === 'abcd' ? 'selected' : '' %>>abcd</option>
+              <option value="text" <%= round.question_type === 'text' ? 'selected' : '' %>>text</option>
+              <option value="number" <%= round.question_type === 'number' ? 'selected' : '' %>>number</option>
+              <option value="buzz" <%= round.question_type === 'buzz' ? 'selected' : '' %>>buzz</option>
+            </select>
+
+            <label>Название раунда</label>
+            <input type="text" name="name" maxlength="120" value="<%= round.name %>" required />
+
+            <label>Описание раунда</label>
+            <textarea name="description" rows="3"><%= round.settings.description %></textarea>
+
+            <label>Комментарий для ведущего</label>
+            <textarea name="hostComment" rows="2"><%= round.settings.hostComment %></textarea>
+
+            <div class="round-settings-box">
+              <strong>Настройки раунда</strong>
+              <div class="inline-form">
+                <label>Время на ответ</label>
+                <select name="answerTime">
+                  <option value="30" <%= round.settings.answerTime === '30' ? 'selected' : '' %>>30 секунд</option>
+                  <option value="60" <%= round.settings.answerTime === '60' ? 'selected' : '' %>>60 секунд</option>
+                  <option value="custom" <%= round.settings.answerTime === 'custom' ? 'selected' : '' %>>Другое</option>
+                </select>
+              </div>
+              <div class="inline-form">
+                <label>Свое время (сек)</label>
+                <input type="number" name="customAnswerTimeSec" value="<%= round.settings.customAnswerTimeSec %>" min="1" />
+              </div>
+              <div class="inline-form">
+                <label>Режим игры</label>
+                <select name="mode">
+                  <option value="normal" <%= round.settings.mode === 'normal' ? 'selected' : '' %>>Обычный</option>
+                  <option value="fastest" <%= round.settings.mode === 'fastest' ? 'selected' : '' %>>Кто быстрее</option>
+                </select>
+              </div>
+              <label><input type="checkbox" name="allowAnswerChange" <%= round.settings.allowAnswerChange ? 'checked' : '' %> /> Возможность менять ответ</label>
+              <label><input type="checkbox" name="excludeFromTotal" <%= round.settings.excludeFromTotal ? 'checked' : '' %> /> Не учитывать раунд в общем зачете</label>
+            </div>
+
+            <button class="button" type="submit">Сохранить раунд</button>
           </form>
-        </li>
+
+          <div class="question-block-list" data-round-questions="<%= round.id %>">
+            <% const roundQuestions = questions.filter((question) => question.round_id === round.id); %>
+            <% if (!roundQuestions.length) { %>
+              <p class="muted">В этом раунде пока нет вопросов.</p>
+            <% } %>
+
+            <% roundQuestions.forEach((question, questionIndex) => { %>
+              <article class="build-question" data-question-id="<%= question.id %>" draggable="true">
+                <div class="build-question-header">
+                  <strong>Вопрос <%= questionIndex + 1 %></strong>
+                  <div class="row wrap">
+                    <button class="button button-outline drag-question-handle" type="button" title="Перетащить вопрос">↕</button>
+                    <a class="button button-outline" href="/admin/games/<%= game.id %>/questions/<%= question.id %>/edit">Редактировать</a>
+                    <form method="post" action="/admin/games/<%= game.id %>/questions/<%= question.id %>/copy" style="display:inline">
+                      <button class="button button-outline" type="submit">Копировать</button>
+                    </form>
+                    <form method="post" action="/admin/games/<%= game.id %>/questions/<%= question.id %>/delete" style="display:inline" onsubmit="return confirm('Удалить вопрос?');">
+                      <button class="button button-danger" type="submit">Удалить</button>
+                    </form>
+                  </div>
+                </div>
+                <p><strong><%= question.title %></strong></p>
+                <p class="muted">Тип: <%= question.type %> • Очки: <%= question.points %></p>
+              </article>
+            <% }) %>
+          </div>
+
+          <details>
+            <summary><strong>Добавить вопрос в раунд</strong></summary>
+            <form method="post" action="/admin/games/<%= game.id %>/questions" class="question-add-form" data-question-form-round="<%= round.id %>">
+              <input type="hidden" name="roundId" value="<%= round.id %>" />
+              <input type="hidden" name="type" value="<%= round.question_type %>" />
+
+              <label>Заголовок вопроса</label>
+              <input type="text" name="title" maxlength="200" required />
+
+              <label>Очки</label>
+              <input type="number" name="points" min="10" step="10" value="100" required />
+
+              <div data-type-block="abcd" <%= round.question_type === 'abcd' ? '' : 'style="display:none"' %>>
+                <label>Вариант 1</label><input type="text" name="option1" />
+                <label>Вариант 2</label><input type="text" name="option2" />
+                <label>Вариант 3</label><input type="text" name="option3" />
+                <label>Вариант 4</label><input type="text" name="option4" />
+                <label>Правильный вариант</label>
+                <select name="correct">
+                  <option value="0">1</option>
+                  <option value="1">2</option>
+                  <option value="2">3</option>
+                  <option value="3">4</option>
+                </select>
+              </div>
+
+              <div data-type-block="text" <%= round.question_type === 'text' ? '' : 'style="display:none"' %>>
+                <label>Правильный текст</label>
+                <input type="text" name="correctText" />
+              </div>
+
+              <div data-type-block="number" <%= round.question_type === 'number' ? '' : 'style="display:none"' %>>
+                <label>Правильное число</label>
+                <input type="number" name="correctNumber" step="any" />
+              </div>
+
+              <label>Лимит времени (сек)</label>
+              <input type="number" name="timeLimitSec" min="1" value="15" />
+
+              <button class="button" type="submit">Добавить вопрос</button>
+            </form>
+          </details>
+        </article>
       <% }) %>
-    </ul>
+    </div>
   <% } %>
-</details>
+</section>
 
 <script>
-  const typeHidden = document.getElementById('question-type-hidden');
-  const typeBlocks = document.querySelectorAll('[data-type-block]');
-  const questionRoundSelect = document.getElementById('question-round-id');
+  async function postJson(url, body) {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) throw new Error('Ошибка обновления порядка');
+    return response.json();
+  }
 
-  function applyRoundType(roundId) {
-    const option = questionRoundSelect.querySelector('option[value="' + roundId + '"]');
-    const roundType = option ? option.dataset.questionType : 'abcd';
-    typeHidden.value = roundType;
-    typeBlocks.forEach((el) => {
-      el.style.display = el.dataset.typeBlock === roundType ? 'block' : 'none';
+  function enableRoundDnD() {
+    const list = document.getElementById('round-list');
+    if (!list) return;
+
+    let draggedRound = null;
+    list.querySelectorAll('.build-round').forEach((roundEl) => {
+      roundEl.addEventListener('dragstart', () => {
+        draggedRound = roundEl;
+        roundEl.classList.add('dragging');
+      });
+      roundEl.addEventListener('dragend', async () => {
+        roundEl.classList.remove('dragging');
+        draggedRound = null;
+        const orderedRoundIds = Array.from(list.querySelectorAll('.build-round')).map((item) => Number(item.dataset.roundId));
+        await postJson('/admin/games/<%= game.id %>/rounds/reorder', { orderedRoundIds });
+      });
+      roundEl.addEventListener('dragover', (event) => {
+        event.preventDefault();
+        if (!draggedRound || draggedRound === roundEl) return;
+        const rect = roundEl.getBoundingClientRect();
+        const after = event.clientY > rect.top + rect.height / 2;
+        if (after) {
+          roundEl.after(draggedRound);
+        } else {
+          roundEl.before(draggedRound);
+        }
+      });
     });
   }
 
-  questionRoundSelect.addEventListener('change', () => applyRoundType(questionRoundSelect.value));
-  applyRoundType(questionRoundSelect.value);
+  function enableQuestionDnD() {
+    document.querySelectorAll('.question-block-list').forEach((list) => {
+      let draggedQuestion = null;
+      list.querySelectorAll('.build-question').forEach((questionEl) => {
+        questionEl.addEventListener('dragstart', () => {
+          draggedQuestion = questionEl;
+          questionEl.classList.add('dragging');
+        });
+        questionEl.addEventListener('dragend', async () => {
+          questionEl.classList.remove('dragging');
+          draggedQuestion = null;
+          const roundId = Number(list.dataset.roundQuestions);
+          const orderedQuestionIds = Array.from(list.querySelectorAll('.build-question')).map((item) => Number(item.dataset.questionId));
+          if (orderedQuestionIds.length) {
+            await postJson('/admin/games/<%= game.id %>/questions/reorder', { roundId, orderedQuestionIds });
+          }
+        });
+        questionEl.addEventListener('dragover', (event) => {
+          event.preventDefault();
+          if (!draggedQuestion || draggedQuestion === questionEl) return;
+          const rect = questionEl.getBoundingClientRect();
+          const after = event.clientY > rect.top + rect.height / 2;
+          if (after) {
+            questionEl.after(draggedQuestion);
+          } else {
+            questionEl.before(draggedQuestion);
+          }
+        });
+      });
+    });
+  }
+
+  enableRoundDnD();
+  enableQuestionDnD();
 </script>
 
 <%- include('partials/footer') %>

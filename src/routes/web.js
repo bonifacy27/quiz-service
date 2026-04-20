@@ -88,6 +88,40 @@ function buildQuestionPayload(type, body) {
   return { error: "Неподдерживаемый тип вопроса" };
 }
 
+function parseRoundSettings(body = {}) {
+  const answerTime = String(body.answerTime || "30");
+  const mode = String(body.mode || "normal");
+  const customAnswerTimeSec = Number(body.customAnswerTimeSec || 30);
+
+  return {
+    description: String(body.description || "").trim().slice(0, 2000),
+    hostComment: String(body.hostComment || "").trim().slice(0, 2000),
+    answerTime: ["60", "30", "custom"].includes(answerTime) ? answerTime : "30",
+    customAnswerTimeSec: Number.isFinite(customAnswerTimeSec) && customAnswerTimeSec > 0 ? customAnswerTimeSec : 30,
+    mode: mode === "fastest" ? "fastest" : "normal",
+    allowAnswerChange: body.allowAnswerChange === "on",
+    excludeFromTotal: body.excludeFromTotal === "on",
+  };
+}
+
+function normalizeRoundSettings(settingsJson) {
+  let parsed = {};
+  try {
+    parsed = JSON.parse(settingsJson || "{}");
+  } catch (_) {
+    parsed = {};
+  }
+  return {
+    description: String(parsed.description || ""),
+    hostComment: String(parsed.hostComment || ""),
+    answerTime: ["60", "30", "custom"].includes(parsed.answerTime) ? parsed.answerTime : "30",
+    customAnswerTimeSec: Number(parsed.customAnswerTimeSec || 30) > 0 ? Number(parsed.customAnswerTimeSec) : 30,
+    mode: parsed.mode === "fastest" ? "fastest" : "normal",
+    allowAnswerChange: Boolean(parsed.allowAnswerChange),
+    excludeFromTotal: Boolean(parsed.excludeFromTotal),
+  };
+}
+
 router.get("/", async (req, res) => {
   const games = await all("SELECT * FROM games ORDER BY id DESC LIMIT 10");
   res.render("index", { games, user: req.session.user || null });
@@ -268,6 +302,32 @@ router.post("/admin/games/:id/questions", requireAdmin, async (req, res) => {
   res.redirect(`/admin/games/${game.id}/build`);
 });
 
+router.post("/admin/games/:id/questions/reorder", requireAdmin, async (req, res) => {
+  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).json({ error: "Игра не найдена" });
+
+  const roundId = Number(req.body.roundId);
+  const orderedQuestionIds = Array.isArray(req.body.orderedQuestionIds) ? req.body.orderedQuestionIds.map(Number) : [];
+  if (!roundId || !orderedQuestionIds.length) return res.status(400).json({ error: "Некорректные данные сортировки" });
+
+  await run("BEGIN");
+  try {
+    for (let index = 0; index < orderedQuestionIds.length; index += 1) {
+      const questionId = orderedQuestionIds[index];
+      await run(
+        "UPDATE questions SET sort_order = ? WHERE id = ? AND game_id = ? AND round_id = ?",
+        [index + 1, questionId, game.id, roundId]
+      );
+    }
+    await run("COMMIT");
+  } catch (err) {
+    await run("ROLLBACK");
+    throw err;
+  }
+
+  res.json({ ok: true });
+});
+
 router.get("/admin/games/:id/questions/:questionId/edit", requireAdmin, async (req, res) => {
   const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
   if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
@@ -363,6 +423,35 @@ router.post("/admin/games/:id/questions/:questionId/delete", requireAdmin, async
   res.redirect(`/admin/games/${game.id}/build`);
 });
 
+router.post("/admin/games/:id/questions/:questionId/copy", requireAdmin, async (req, res) => {
+  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
+
+  const question = await get("SELECT * FROM questions WHERE id = ? AND game_id = ?", [req.params.questionId, game.id]);
+  if (!question) return res.status(404).render("error", { message: "Вопрос не найден" });
+
+  const order = await get(
+    "SELECT COALESCE(MAX(sort_order), 0) AS maxOrder FROM questions WHERE game_id = ? AND round_id = ?",
+    [game.id, question.round_id]
+  );
+  await run(
+    `INSERT INTO questions
+      (game_id, round_id, type, title, payload_json, points, sort_order)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      game.id,
+      question.round_id,
+      question.type,
+      `${question.title} (копия)`.slice(0, 200),
+      question.payload_json,
+      question.points,
+      Number(order.maxOrder || 0) + 1,
+    ]
+  );
+
+  res.redirect(`/admin/games/${game.id}/build`);
+});
+
 router.post("/admin/games/:id/rounds", requireAdmin, async (req, res) => {
   await ensureExtendedGameSchema();
   const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
@@ -370,6 +459,7 @@ router.post("/admin/games/:id/rounds", requireAdmin, async (req, res) => {
 
   const name = String(req.body.name || "").trim().slice(0, 120);
   const questionType = String(req.body.questionType || "").trim();
+  const settings = parseRoundSettings(req.body);
   if (!name) return res.status(400).render("error", { message: "Введите название раунда" });
   if (!["abcd", "text", "number", "buzz"].includes(questionType)) {
     return res.status(400).render("error", { message: "Выберите корректный тип вопросов раунда" });
@@ -377,14 +467,125 @@ router.post("/admin/games/:id/rounds", requireAdmin, async (req, res) => {
 
   const order = await get("SELECT COALESCE(MAX(sort_order), 0) AS maxOrder FROM rounds WHERE game_id = ?", [game.id]);
   await run(
-    "INSERT INTO rounds (game_id, name, question_type, question_count, settings_json, sort_order) VALUES (?, ?, ?, 9999, '{}', ?)",
+    "INSERT INTO rounds (game_id, name, question_type, question_count, settings_json, sort_order) VALUES (?, ?, ?, 9999, ?, ?)",
     [
     game.id,
     name,
     questionType,
+    JSON.stringify(settings),
     Number(order.maxOrder || 0) + 1,
     ]
   );
+
+  res.redirect(`/admin/games/${game.id}/build`);
+});
+
+router.post("/admin/games/:id/rounds/reorder", requireAdmin, async (req, res) => {
+  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).json({ error: "Игра не найдена" });
+
+  const orderedRoundIds = Array.isArray(req.body.orderedRoundIds) ? req.body.orderedRoundIds.map(Number) : [];
+  if (!orderedRoundIds.length) return res.status(400).json({ error: "Некорректные данные сортировки" });
+
+  await run("BEGIN");
+  try {
+    for (let index = 0; index < orderedRoundIds.length; index += 1) {
+      const roundId = orderedRoundIds[index];
+      await run("UPDATE rounds SET sort_order = ? WHERE id = ? AND game_id = ?", [index + 1, roundId, game.id]);
+    }
+    await run("COMMIT");
+  } catch (err) {
+    await run("ROLLBACK");
+    throw err;
+  }
+
+  res.json({ ok: true });
+});
+
+router.post("/admin/games/:id/rounds/:roundId/update", requireAdmin, async (req, res) => {
+  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
+
+  const round = await get("SELECT * FROM rounds WHERE id = ? AND game_id = ?", [req.params.roundId, game.id]);
+  if (!round) return res.status(404).render("error", { message: "Раунд не найден" });
+
+  const name = String(req.body.name || "").trim().slice(0, 120);
+  const questionType = String(req.body.questionType || "").trim();
+  const settings = parseRoundSettings(req.body);
+  if (!name) return res.status(400).render("error", { message: "Введите название раунда" });
+  if (!["abcd", "text", "number", "buzz"].includes(questionType)) {
+    return res.status(400).render("error", { message: "Выберите корректный тип вопросов раунда" });
+  }
+
+  await run("UPDATE rounds SET name = ?, question_type = ?, settings_json = ? WHERE id = ? AND game_id = ?", [
+    name,
+    questionType,
+    JSON.stringify(settings),
+    round.id,
+    game.id,
+  ]);
+
+  res.redirect(`/admin/games/${game.id}/build`);
+});
+
+router.post("/admin/games/:id/rounds/:roundId/delete", requireAdmin, async (req, res) => {
+  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
+
+  const round = await get("SELECT * FROM rounds WHERE id = ? AND game_id = ?", [req.params.roundId, game.id]);
+  if (!round) return res.status(404).render("error", { message: "Раунд не найден" });
+
+  const questionIds = await all("SELECT id FROM questions WHERE game_id = ? AND round_id = ?", [game.id, round.id]);
+  for (const row of questionIds) {
+    await run("DELETE FROM player_answers WHERE question_id = ?", [row.id]);
+  }
+  await run("DELETE FROM questions WHERE game_id = ? AND round_id = ?", [game.id, round.id]);
+  await run("DELETE FROM rounds WHERE id = ? AND game_id = ?", [round.id, game.id]);
+
+  res.redirect(`/admin/games/${game.id}/build`);
+});
+
+router.post("/admin/games/:id/rounds/:roundId/copy", requireAdmin, async (req, res) => {
+  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
+
+  const round = await get("SELECT * FROM rounds WHERE id = ? AND game_id = ?", [req.params.roundId, game.id]);
+  if (!round) return res.status(404).render("error", { message: "Раунд не найден" });
+
+  const order = await get("SELECT COALESCE(MAX(sort_order), 0) AS maxOrder FROM rounds WHERE game_id = ?", [game.id]);
+  const roundResult = await run(
+    "INSERT INTO rounds (game_id, name, question_type, question_count, settings_json, sort_order) VALUES (?, ?, ?, ?, ?, ?)",
+    [
+      game.id,
+      `${round.name} (копия)`.slice(0, 120),
+      round.question_type,
+      round.question_count,
+      round.settings_json || "{}",
+      Number(order.maxOrder || 0) + 1,
+    ]
+  );
+
+  const copiedRoundId = roundResult.lastID;
+  const sourceQuestions = await all(
+    "SELECT * FROM questions WHERE game_id = ? AND round_id = ? ORDER BY sort_order ASC, id ASC",
+    [game.id, round.id]
+  );
+  for (const sourceQuestion of sourceQuestions) {
+    await run(
+      `INSERT INTO questions
+        (game_id, round_id, type, title, payload_json, points, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        game.id,
+        copiedRoundId,
+        sourceQuestion.type,
+        sourceQuestion.title,
+        sourceQuestion.payload_json,
+        sourceQuestion.points,
+        sourceQuestion.sort_order,
+      ]
+    );
+  }
 
   res.redirect(`/admin/games/${game.id}/build`);
 });
@@ -412,10 +613,14 @@ router.get("/admin/games/:id/build", requireAdmin, async (req, res) => {
      ORDER BY COALESCE(r.sort_order, 0) ASC, q.sort_order ASC, q.id ASC`,
     [game.id]
   );
+  const roundsWithSettings = rounds.map((round) => ({
+    ...round,
+    settings: normalizeRoundSettings(round.settings_json),
+  }));
 
   res.render("admin-game-build", {
     game,
-    rounds,
+    rounds: roundsWithSettings,
     questions,
     user: req.session.user,
   });

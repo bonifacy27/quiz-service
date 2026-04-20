@@ -1,0 +1,94 @@
+<%- include('partials/header', { title: 'Создание игры', user }) %>
+
+<section class="card">
+  <h1><%= game.title %> • создание игры</h1>
+  <p>
+    <a class="button" href="/admin/games/<%= game.id %>/build">Создание игры</a>
+    <a class="button button-outline" href="/admin/games/<%= game.id %>/control">Управление игрой</a>
+  </p>
+  <p>Здесь собраны только шаги подготовки: раунды и вопросы.</p>
+</section>
+
+<details class="card" open>
+  <summary><strong>Добавить раунд</strong></summary>
+  <form method="post" action="/admin/games/<%= game.id %>/rounds" class="inline-form">
+    <input type="text" name="name" maxlength="120" placeholder="Новый раунд" required />
+    <select name="questionType" required>
+      <option value="abcd">abcd</option>
+      <option value="text">text</option>
+      <option value="number">number</option>
+      <option value="buzz">buzz</option>
+    </select>
+    <button class="button" type="submit">Добавить раунд</button>
+  </form>
+</details>
+
+<details class="card" open>
+  <summary><strong>Добавить вопрос к раунду</strong></summary>
+  <form method="post" action="/admin/games/<%= game.id %>/questions" id="question-form">
+    <label>Раунд</label>
+    <select name="roundId" id="question-round-id" required>
+      <% rounds.forEach(round => { %>
+        <option value="<%= round.id %>" data-question-type="<%= round.question_type %>"><%= round.name %> (<%= round.question_type %>)</option>
+      <% }) %>
+    </select>
+    <input type="hidden" name="type" id="question-type-hidden" value="<%= rounds[0] ? rounds[0].question_type : 'abcd' %>" />
+
+    <label>Заголовок</label><input type="text" name="title" maxlength="200" required />
+    <label>Очки</label><input type="number" name="points" min="10" step="10" value="100" required />
+
+    <div data-type-block="abcd">
+      <label>Вариант 1</label><input type="text" name="option1" />
+      <label>Вариант 2</label><input type="text" name="option2" />
+      <label>Вариант 3</label><input type="text" name="option3" />
+      <label>Вариант 4</label><input type="text" name="option4" />
+      <label>Правильный вариант</label>
+      <select name="correct"><option value="0">1</option><option value="1">2</option><option value="2">3</option><option value="3">4</option></select>
+    </div>
+    <div data-type-block="text" style="display:none"><label>Правильный текст</label><input type="text" name="correctText" /></div>
+    <div data-type-block="number" style="display:none"><label>Правильное число</label><input type="number" name="correctNumber" step="any" /></div>
+
+    <label>Лимит времени (сек)</label><input type="number" name="timeLimitSec" min="1" value="15" />
+    <button class="button" type="submit">Добавить вопрос</button>
+  </form>
+</details>
+
+<details class="card" open>
+  <summary><strong>Текущие раунды и вопросы</strong></summary>
+  <% if (!questions.length) { %>
+    <p>Вопросов пока нет.</p>
+  <% } else { %>
+    <ul>
+      <% questions.forEach((question) => { %>
+        <li>
+          <strong><%= question.round_name || 'Раунд удален' %></strong> —
+          <%= question.title %> [<%= question.type %>] — <%= question.points %> очков
+          <a href="/admin/games/<%= game.id %>/questions/<%= question.id %>/edit">Редактировать</a>
+          <form method="post" action="/admin/games/<%= game.id %>/questions/<%= question.id %>/delete" style="display:inline" onsubmit="return confirm('Удалить вопрос?');">
+            <button type="submit" class="button-link">Удалить</button>
+          </form>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</details>
+
+<script>
+  const typeHidden = document.getElementById('question-type-hidden');
+  const typeBlocks = document.querySelectorAll('[data-type-block]');
+  const questionRoundSelect = document.getElementById('question-round-id');
+
+  function applyRoundType(roundId) {
+    const option = questionRoundSelect.querySelector('option[value="' + roundId + '"]');
+    const roundType = option ? option.dataset.questionType : 'abcd';
+    typeHidden.value = roundType;
+    typeBlocks.forEach((el) => {
+      el.style.display = el.dataset.typeBlock === roundType ? 'block' : 'none';
+    });
+  }
+
+  questionRoundSelect.addEventListener('change', () => applyRoundType(questionRoundSelect.value));
+  applyRoundType(questionRoundSelect.value);
+</script>
+
+<%- include('partials/footer') %>

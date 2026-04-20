@@ -265,7 +265,7 @@ router.post("/admin/games/:id/questions", requireAdmin, async (req, res) => {
     [game.id, roundId, round.question_type, title, JSON.stringify(payload), points > 0 ? points : 100, Number(order.maxOrder || 0) + 1]
   );
 
-  res.redirect(`/admin/games/${game.id}/control`);
+  res.redirect(`/admin/games/${game.id}/build`);
 });
 
 router.get("/admin/games/:id/questions/:questionId/edit", requireAdmin, async (req, res) => {
@@ -347,7 +347,7 @@ router.post("/admin/games/:id/questions/:questionId/edit", requireAdmin, async (
     game.id,
   ]);
 
-  res.redirect(`/admin/games/${game.id}/control`);
+  res.redirect(`/admin/games/${game.id}/build`);
 });
 
 router.post("/admin/games/:id/questions/:questionId/delete", requireAdmin, async (req, res) => {
@@ -360,7 +360,7 @@ router.post("/admin/games/:id/questions/:questionId/delete", requireAdmin, async
   await run("DELETE FROM player_answers WHERE question_id = ?", [question.id]);
   await run("DELETE FROM questions WHERE id = ? AND game_id = ?", [question.id, game.id]);
 
-  res.redirect(`/admin/games/${game.id}/control`);
+  res.redirect(`/admin/games/${game.id}/build`);
 });
 
 router.post("/admin/games/:id/rounds", requireAdmin, async (req, res) => {
@@ -386,17 +386,18 @@ router.post("/admin/games/:id/rounds", requireAdmin, async (req, res) => {
     ]
   );
 
-  res.redirect(`/admin/games/${game.id}/control`);
+  res.redirect(`/admin/games/${game.id}/build`);
 });
 
-router.get("/admin/games/:id/control", requireAdmin, async (req, res) => {
+
+router.get("/admin/games/:id/build", requireAdmin, async (req, res) => {
   await ensureExtendedGameSchema();
   const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
   if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
 
   let rounds = await all("SELECT * FROM rounds WHERE game_id = ? ORDER BY sort_order ASC, id ASC", [game.id]);
   if (!rounds.length) {
-    const roundResult = await run(
+    await run(
       "INSERT INTO rounds (game_id, name, question_type, question_count, settings_json, sort_order) VALUES (?, 'Раунд 1', 'abcd', 9999, '{}', 1)",
       [game.id]
     );
@@ -411,6 +412,28 @@ router.get("/admin/games/:id/control", requireAdmin, async (req, res) => {
      ORDER BY COALESCE(r.sort_order, 0) ASC, q.sort_order ASC, q.id ASC`,
     [game.id]
   );
+
+  res.render("admin-game-build", {
+    game,
+    rounds,
+    questions,
+    user: req.session.user,
+  });
+});
+
+router.get("/admin/games/:id/control", requireAdmin, async (req, res) => {
+  await ensureExtendedGameSchema();
+  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
+
+  let rounds = await all("SELECT * FROM rounds WHERE game_id = ? ORDER BY sort_order ASC, id ASC", [game.id]);
+  if (!rounds.length) {
+    await run(
+      "INSERT INTO rounds (game_id, name, question_type, question_count, settings_json, sort_order) VALUES (?, 'Раунд 1', 'abcd', 9999, '{}', 1)",
+      [game.id]
+    );
+    rounds = await all("SELECT * FROM rounds WHERE game_id = ? ORDER BY sort_order ASC, id ASC", [game.id]);
+  }
   const sessions = await all(
     "SELECT * FROM game_sessions WHERE game_id = ? ORDER BY session_number DESC, id DESC",
     [game.id]
@@ -452,7 +475,6 @@ router.get("/admin/games/:id/control", requireAdmin, async (req, res) => {
     sessions,
     currentSessionId,
     players,
-    questions,
     roundScoreTable,
     joinUrl,
     qrDataUrl,

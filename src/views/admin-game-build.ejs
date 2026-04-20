@@ -360,6 +360,26 @@
     });
   }
 
+  function resetQuestionDraftForm(form) {
+    form.reset();
+    const imageUrlInput = form.querySelector('.image-url-input');
+    const statusEl = form.querySelector('.image-status');
+    const previewWrap = form.querySelector('.image-preview-wrap');
+    const previewLink = form.querySelector('.image-preview-link');
+    const previewThumb = form.querySelector('.image-preview-thumb');
+    if (imageUrlInput) imageUrlInput.value = '';
+    if (statusEl) statusEl.textContent = '';
+    if (previewWrap) previewWrap.style.display = 'none';
+    if (previewLink) previewLink.href = '#';
+    if (previewThumb) previewThumb.src = '';
+
+    const optionsList = form.querySelector('[data-options-list]');
+    if (optionsList) {
+      renderOptionRows(optionsList, [], 0);
+      initOptionDnD(optionsList);
+    }
+  }
+
   function createQuestionCard(question, gameId) {
     const article = document.createElement('article');
     article.className = 'build-question compact';
@@ -475,6 +495,7 @@
 
       form.addEventListener('submit', async (event) => {
         event.preventDefault();
+        if (!form.reportValidity()) return;
         const activeElement = document.activeElement;
         const activeName = activeElement && activeElement.name ? activeElement.name : null;
 
@@ -510,6 +531,8 @@
             if (sameField) sameField.focus();
           }
 
+          resetQuestionDraftForm(form);
+
           setTimeout(() => {
             form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
           }, 80);
@@ -528,13 +551,18 @@
   function initRoundCardActions() {
     document.querySelectorAll('[data-round-card]').forEach((roundCard) => {
       roundCard.querySelector('[data-round-edit]')?.addEventListener('click', () => toggleRoundCard(roundCard, true));
-      roundCard.querySelector('[data-round-close]')?.addEventListener('click', () => toggleRoundCard(roundCard, false));
+      roundCard.querySelector('[data-round-close]')?.addEventListener('click', () => {
+        const draftForm = roundCard.querySelector('.question-add-form');
+        if (draftForm) resetQuestionDraftForm(draftForm);
+        toggleRoundCard(roundCard, false);
+      });
     });
 
     const showCreateButton = document.getElementById('show-round-create');
     const roundCreateForm = document.getElementById('round-create-form');
     if (showCreateButton && roundCreateForm) {
       showCreateButton.addEventListener('click', () => {
+        document.querySelectorAll('.question-add-form').forEach((draftForm) => resetQuestionDraftForm(draftForm));
         roundCreateForm.hidden = !roundCreateForm.hidden;
       });
     }

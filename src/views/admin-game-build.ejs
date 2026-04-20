@@ -469,6 +469,7 @@
 
   function enableCompactAddQuestion() {
     document.querySelectorAll('.question-add-form').forEach((form) => {
+      form.classList.add('is-current');
       initOptionsEditor(form);
       wireImageUpload(form);
 
@@ -492,6 +493,8 @@
           if (empty) empty.remove();
 
           const questionCard = createQuestionCard(data.question, <%= game.id %>);
+          list.querySelectorAll('.build-question.is-newly-added').forEach((item) => item.classList.remove('is-newly-added'));
+          questionCard.classList.add('is-newly-added');
           list.appendChild(questionCard);
           bindDnDForQuestion(questionCard, list, <%= game.id %>);
           const editForm = questionCard.querySelector('.question-edit-form');
@@ -506,6 +509,10 @@
             const sameField = form.querySelector('[name="' + activeName + '"]');
             if (sameField) sameField.focus();
           }
+
+          setTimeout(() => {
+            form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }, 80);
         } catch (error) {
           alert(error.message || 'Ошибка добавления вопроса');
         }

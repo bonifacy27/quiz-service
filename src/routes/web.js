@@ -18,7 +18,12 @@ const upload = multer({
 });
 
 function requireAdmin(req, res, next) {
-  if (!req.session.user) return res.redirect("/admin/login");
+  if (!req.session.user) {
+    if (req.xhr || String(req.headers.accept || "").includes("application/json")) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    return res.status(401).render("admin-login", { error: "Сессия истекла. Войдите снова." });
+  }
   next();
 }
 
@@ -673,17 +678,6 @@ router.post("/admin/games/:id/rounds/:roundId/copy", requireAdmin, async (req, r
       ]
     );
   }
-
-  res.redirect(`/admin/games/${game.id}/build`);
-});
-
-
-router.get("/admin/games/:id/build", requireAdmin, async (req, res) => {
-  await ensureExtendedGameSchema();
-  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
-  if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
-
-  let rounds = await all("SELECT * FROM rounds WHERE game_id = ? ORDER BY sort_order ASC, id ASC", [game.id]);
 
   res.redirect(`/admin/games/${game.id}/build`);
 });

@@ -5,9 +5,25 @@ body {
   color: #222;
 }
 
+body.fullscreen-page {
+  background: #0b1220;
+  color: #f8fafc;
+}
+
 .container {
   width: min(1000px, calc(100% - 32px));
   margin: 0 auto;
+}
+
+.fullscreen-stage {
+  width: min(1200px, calc(100% - 24px));
+  margin: 12px auto;
+  display: grid;
+  gap: 12px;
+}
+
+.fullscreen-card {
+  margin-bottom: 0;
 }
 
 .site-header {
@@ -139,6 +155,17 @@ textarea {
   background: #0f172a;
   color: white;
   border-radius: 12px;
+}
+
+.question-media {
+  display: block;
+  max-width: min(100%, 720px);
+  max-height: 42vh;
+  border-radius: 12px;
+  border: 1px solid #334155;
+  margin: 0 auto 14px;
+  object-fit: contain;
+  background: #020617;
 }
 
 .game-screen-box {
@@ -278,7 +305,7 @@ details > summary {
 
 .question-block-list {
   display: grid;
-  gap: 10px;
+  gap: 14px;
   margin-top: 10px;
 }
 
@@ -304,11 +331,10 @@ details > summary {
 }
 
 .question-add-sticky {
-  position: sticky;
-  bottom: 8px;
+  position: static;
   background: #f8fafc;
   padding: 6px 0;
-  z-index: 2;
+  margin-top: 10px;
 }
 
 .question-add-row {
@@ -349,4 +375,87 @@ details > summary {
   .question-add-row {
     grid-template-columns: 1fr;
   }
+}
+
+.modern-rounds {
+  gap: 14px;
+}
+
+.build-round-card {
+  background: #f3f4f6;
+  border-color: #d6d9df;
+  padding: 14px;
+}
+
+.build-question {
+  background: #fff;
+  border-color: #cbd5e1;
+}
+
+.build-question.is-newly-added {
+  border-color: #0284c7;
+  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
+}
+
+.question-add-form.is-current {
+  border: 1px dashed #0284c7;
+  border-radius: 10px;
+  padding: 12px;
+  background: #f8fbff;
+}
+
+.modern-round-header h3 {
+  color: #0284c7;
+  margin: 0;
+}
+
+.modern-round-header p {
+  margin: 4px 0 0;
+}
+
+.round-collapsed-actions {
+  margin-top: 8px;
+}
+
+.round-editor {
+  margin-top: 10px;
+}
+
+.build-round-card.is-collapsed .round-editor {
+  display: none;
+}
+
+.build-round-card.is-open .round-collapsed-actions {
+  display: none;
+}
+
+.round-settings-box h4 {
+  margin: 0 0 8px;
+}
+
+.round-close-btn {
+  margin-left: 0;
+}
+
+.option-row {
+  grid-template-columns: 52px 1fr auto auto;
+}
+
+.option-drag-handle {
+  cursor: grab;
+}
+
+.option-row.dragging {
+  opacity: 0.55;
+}
+
+.image-preview-thumb {
+  max-width: 200px;
+  max-height: 120px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+}
+
+#round-create-form {
+  margin-top: 8px;
 }

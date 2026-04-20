@@ -304,11 +304,10 @@ details > summary {
 }
 
 .question-add-sticky {
-  position: sticky;
-  bottom: 8px;
+  position: static;
   background: #f8fafc;
   padding: 6px 0;
-  z-index: 2;
+  margin-top: 10px;
 }
 
 .question-add-row {

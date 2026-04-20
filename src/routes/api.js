@@ -171,11 +171,6 @@ router.post("/admin/games", requireAdmin, async (req, res) => {
         [gameId, roundName.slice(0, 120), questionType, roundIndex + 1]
       );
     }
-  } else {
-    await run(
-      "INSERT INTO rounds (game_id, name, question_type, question_count, settings_json, sort_order) VALUES (?, ?, 'abcd', 9999, '{}', 1)",
-      [gameId, "Раунд 1"]
-    );
   }
 
   res.json({ ok: true, gameId, code });

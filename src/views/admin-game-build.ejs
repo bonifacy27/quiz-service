@@ -1,0 +1,291 @@
+<%- include('partials/header', { title: 'Создание игры', user }) %>
+
+<section class="card">
+  <h1><%= game.title %> • создание игры</h1>
+  <p>
+    <a class="button" href="/admin/games/<%= game.id %>/build">Создание игры</a>
+    <a class="button button-outline" href="/admin/games/<%= game.id %>/control">Управление игрой</a>
+  </p>
+</section>
+
+<section class="card">
+  <h2>Раунды</h2>
+  <form method="post" action="/admin/games/<%= game.id %>/rounds" class="round-add-inline">
+    <input type="text" name="name" maxlength="120" placeholder="Название раунда" required />
+    <select name="questionType" required>
+      <option value="abcd">ABCD</option>
+      <option value="text">TEXT</option>
+      <option value="number">NUMBER</option>
+      <option value="buzz">BUZZ</option>
+    </select>
+    <button class="button" type="submit">Добавить раунд</button>
+  </form>
+
+  <% if (!rounds.length) { %>
+    <p>Раундов пока нет.</p>
+  <% } else { %>
+    <div id="round-list" class="build-round-list compact">
+      <% rounds.forEach((round, roundIndex) => { %>
+        <article class="build-round" data-round-id="<%= round.id %>" draggable="true">
+          <div class="build-round-header compact">
+            <div>
+              <h3>Раунд <%= roundIndex + 1 %></h3>
+              <p class="muted small"><strong><%= round.name %></strong> • <%= String(round.question_type || '').toUpperCase() %></p>
+            </div>
+            <div class="row wrap">
+              <button class="button button-outline icon-button" type="button" title="Перетащить раунд">↕</button>
+              <form method="post" action="/admin/games/<%= game.id %>/rounds/<%= round.id %>/copy" style="display:inline">
+                <button class="button button-outline icon-button" type="submit" title="Копировать">⧉</button>
+              </form>
+              <form method="post" action="/admin/games/<%= game.id %>/rounds/<%= round.id %>/delete" style="display:inline" onsubmit="return confirm('Удалить раунд и все его вопросы?');">
+                <button class="button button-outline icon-button" type="submit" title="Удалить">🗑</button>
+              </form>
+            </div>
+          </div>
+
+          <details <%= editRoundId === round.id ? 'open' : '' %> class="round-settings-details">
+            <summary><strong>Редактировать</strong></summary>
+            <form method="post" action="/admin/games/<%= game.id %>/rounds/<%= round.id %>/update" class="round-edit-grid compact-form">
+              <label>Название</label>
+              <input type="text" name="name" maxlength="120" value="<%= round.name %>" required />
+
+              <label>Тип вопросов</label>
+              <select name="questionType" required>
+                <option value="abcd" <%= round.question_type === 'abcd' ? 'selected' : '' %>>abcd</option>
+                <option value="text" <%= round.question_type === 'text' ? 'selected' : '' %>>text</option>
+                <option value="number" <%= round.question_type === 'number' ? 'selected' : '' %>>number</option>
+                <option value="buzz" <%= round.question_type === 'buzz' ? 'selected' : '' %>>buzz</option>
+              </select>
+
+              <label>Описание раунда</label>
+              <textarea name="description" rows="2"><%= round.settings.description %></textarea>
+
+              <label>Комментарий для ведущего</label>
+              <textarea name="hostComment" rows="2"><%= round.settings.hostComment %></textarea>
+
+              <details>
+                <summary>Настройки раунда</summary>
+                <div class="round-settings-box">
+                  <div class="inline-form">
+                    <label>Время на ответ</label>
+                    <select name="answerTime">
+                      <option value="30" <%= round.settings.answerTime === '30' ? 'selected' : '' %>>30 секунд</option>
+                      <option value="60" <%= round.settings.answerTime === '60' ? 'selected' : '' %>>60 секунд</option>
+                      <option value="custom" <%= round.settings.answerTime === 'custom' ? 'selected' : '' %>>Другое</option>
+                    </select>
+                  </div>
+                  <div class="inline-form">
+                    <label>Свое время (сек)</label>
+                    <input type="number" name="customAnswerTimeSec" value="<%= round.settings.customAnswerTimeSec %>" min="1" />
+                  </div>
+                  <div class="inline-form">
+                    <label>Режим игры</label>
+                    <select name="mode">
+                      <option value="normal" <%= round.settings.mode === 'normal' ? 'selected' : '' %>>Обычный</option>
+                      <option value="fastest" <%= round.settings.mode === 'fastest' ? 'selected' : '' %>>Кто быстрее</option>
+                    </select>
+                  </div>
+                  <label><input type="checkbox" name="allowAnswerChange" <%= round.settings.allowAnswerChange ? 'checked' : '' %> /> Можно менять ответ</label>
+                  <label><input type="checkbox" name="excludeFromTotal" <%= round.settings.excludeFromTotal ? 'checked' : '' %> /> Не учитывать в общем зачете</label>
+                </div>
+              </details>
+
+              <button class="button" type="submit">Сохранить</button>
+            </form>
+          </details>
+
+          <div class="question-add-sticky">
+            <form method="post" action="/admin/games/<%= game.id %>/questions/create" class="question-add-form compact-form" data-question-form-round="<%= round.id %>">
+              <input type="hidden" name="roundId" value="<%= round.id %>" />
+              <input type="hidden" name="type" value="<%= round.question_type %>" />
+
+              <div class="question-add-row">
+                <input type="text" name="title" maxlength="200" placeholder="Добавить вопрос" required />
+                <input type="number" name="points" min="10" step="10" value="100" required />
+                <button class="button" type="submit">Добавить вопрос</button>
+              </div>
+
+              <details>
+                <summary>Поля ответа</summary>
+                <div data-type-block="abcd" <%= round.question_type === 'abcd' ? '' : 'style="display:none"' %>>
+                  <input type="text" name="option1" placeholder="Вариант 1" />
+                  <input type="text" name="option2" placeholder="Вариант 2" />
+                  <input type="text" name="option3" placeholder="Вариант 3" />
+                  <input type="text" name="option4" placeholder="Вариант 4" />
+                  <label>Верный вариант</label>
+                  <select name="correct"><option value="0">1</option><option value="1">2</option><option value="2">3</option><option value="3">4</option></select>
+                </div>
+                <div data-type-block="text" <%= round.question_type === 'text' ? '' : 'style="display:none"' %>>
+                  <input type="text" name="correctText" placeholder="Правильный текст" />
+                </div>
+                <div data-type-block="number" <%= round.question_type === 'number' ? '' : 'style="display:none"' %>>
+                  <input type="number" name="correctNumber" step="any" placeholder="Правильное число" />
+                </div>
+                <label>Лимит времени (сек)</label>
+                <input type="number" name="timeLimitSec" min="1" value="15" />
+              </details>
+            </form>
+          </div>
+
+          <div class="question-block-list" data-round-questions="<%= round.id %>">
+            <% const roundQuestions = questions.filter((question) => question.round_id === round.id); %>
+            <% if (!roundQuestions.length) { %>
+              <p class="muted">В этом раунде пока нет вопросов.</p>
+            <% } %>
+            <% roundQuestions.forEach((question, questionIndex) => { %>
+              <article class="build-question compact" data-question-id="<%= question.id %>" draggable="true">
+                <div class="build-question-header compact">
+                  <span><strong><%= questionIndex + 1 %>.</strong> <%= question.title %> <span class="muted">(<%= question.points %>)</span></span>
+                  <div class="row wrap">
+                    <button class="button button-outline icon-button" type="button" title="Перетащить">↕</button>
+                    <a class="button button-outline icon-button" href="/admin/games/<%= game.id %>/questions/<%= question.id %>/edit" title="Редактировать">✎</a>
+                    <form method="post" action="/admin/games/<%= game.id %>/questions/<%= question.id %>/copy" style="display:inline">
+                      <button class="button button-outline icon-button" type="submit" title="Копировать">⧉</button>
+                    </form>
+                    <form method="post" action="/admin/games/<%= game.id %>/questions/<%= question.id %>/delete" style="display:inline" onsubmit="return confirm('Удалить вопрос?');">
+                      <button class="button button-outline icon-button" type="submit" title="Удалить">🗑</button>
+                    </form>
+                  </div>
+                </div>
+              </article>
+            <% }) %>
+          </div>
+        </article>
+      <% }) %>
+    </div>
+  <% } %>
+</section>
+
+<script>
+  async function postJson(url, body) {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({ error: 'Ошибка' }));
+      throw new Error(payload.error || 'Ошибка');
+    }
+    return response.json();
+  }
+
+  function createQuestionCard(question, gameId) {
+    const article = document.createElement('article');
+    article.className = 'build-question compact';
+    article.dataset.questionId = String(question.id);
+    article.draggable = true;
+    article.innerHTML =
+      '<div class="build-question-header compact">' +
+      '<span><strong>•</strong> ' + question.title + ' <span class="muted">(' + question.points + ')</span></span>' +
+      '<div class="row wrap">' +
+      '<button class="button button-outline icon-button" type="button" title="Перетащить">↕</button>' +
+      '<a class="button button-outline icon-button" href="/admin/games/' + gameId + '/questions/' + question.id + '/edit" title="Редактировать">✎</a>' +
+      '<form method="post" action="/admin/games/' + gameId + '/questions/' + question.id + '/copy" style="display:inline"><button class="button button-outline icon-button" type="submit" title="Копировать">⧉</button></form>' +
+      '<form method="post" action="/admin/games/' + gameId + '/questions/' + question.id + '/delete" style="display:inline" onsubmit="return confirm(\'Удалить вопрос?\');"><button class="button button-outline icon-button" type="submit" title="Удалить">🗑</button></form>' +
+      '</div></div>';
+    return article;
+  }
+
+  function bindDnDForQuestion(questionEl, list, gameId) {
+    let draggedQuestion = null;
+    questionEl.addEventListener('dragstart', () => {
+      draggedQuestion = questionEl;
+      questionEl.classList.add('dragging');
+    });
+    questionEl.addEventListener('dragend', async () => {
+      questionEl.classList.remove('dragging');
+      draggedQuestion = null;
+      const roundId = Number(list.dataset.roundQuestions);
+      const orderedQuestionIds = Array.from(list.querySelectorAll('.build-question')).map((item) => Number(item.dataset.questionId));
+      if (orderedQuestionIds.length) {
+        await postJson('/admin/games/' + gameId + '/questions/reorder', { roundId, orderedQuestionIds });
+      }
+    });
+    questionEl.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      const draggingEl = list.querySelector('.build-question.dragging');
+      if (!draggingEl || draggingEl === questionEl) return;
+      const rect = questionEl.getBoundingClientRect();
+      const after = event.clientY > rect.top + rect.height / 2;
+      if (after) questionEl.after(draggingEl);
+      else questionEl.before(draggingEl);
+    });
+  }
+
+  function enableRoundDnD() {
+    const list = document.getElementById('round-list');
+    if (!list) return;
+    let draggedRound = null;
+    list.querySelectorAll('.build-round').forEach((roundEl) => {
+      roundEl.addEventListener('dragstart', () => {
+        draggedRound = roundEl;
+        roundEl.classList.add('dragging');
+      });
+      roundEl.addEventListener('dragend', async () => {
+        roundEl.classList.remove('dragging');
+        draggedRound = null;
+        const orderedRoundIds = Array.from(list.querySelectorAll('.build-round')).map((item) => Number(item.dataset.roundId));
+        await postJson('/admin/games/<%= game.id %>/rounds/reorder', { orderedRoundIds });
+      });
+      roundEl.addEventListener('dragover', (event) => {
+        event.preventDefault();
+        if (!draggedRound || draggedRound === roundEl) return;
+        const rect = roundEl.getBoundingClientRect();
+        const after = event.clientY > rect.top + rect.height / 2;
+        if (after) roundEl.after(draggedRound);
+        else roundEl.before(draggedRound);
+      });
+    });
+  }
+
+  function enableQuestionDnD() {
+    document.querySelectorAll('.question-block-list').forEach((list) => {
+      list.querySelectorAll('.build-question').forEach((questionEl) => bindDnDForQuestion(questionEl, list, <%= game.id %>));
+    });
+  }
+
+  function enableCompactAddQuestion() {
+    document.querySelectorAll('.question-add-form').forEach((form) => {
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const activeElement = document.activeElement;
+        const activeName = activeElement && activeElement.name ? activeElement.name : null;
+        const activeValue = activeElement && typeof activeElement.value === 'string' ? activeElement.value : '';
+
+        const formData = new FormData(form);
+        const payload = Object.fromEntries(formData.entries());
+
+        try {
+          const data = await postJson(form.action, payload);
+          const list = form.closest('.build-round').querySelector('.question-block-list');
+          const empty = list.querySelector('.muted');
+          if (empty) empty.remove();
+
+          const questionCard = createQuestionCard(data.question, <%= game.id %>);
+          list.appendChild(questionCard);
+          bindDnDForQuestion(questionCard, list, <%= game.id %>);
+
+          const titleInput = form.querySelector('input[name="title"]');
+          if (titleInput) titleInput.value = '';
+
+          if (activeName) {
+            const sameField = form.querySelector('[name="' + activeName + '"]');
+            if (sameField) {
+              sameField.focus();
+              if (activeName !== 'title' && typeof sameField.value === 'string') sameField.value = activeValue;
+            }
+          }
+        } catch (error) {
+          alert(error.message || 'Ошибка добавления вопроса');
+        }
+      });
+    });
+  }
+
+  enableRoundDnD();
+  enableQuestionDnD();
+  enableCompactAddQuestion();
+</script>
+
+<%- include('partials/footer') %>

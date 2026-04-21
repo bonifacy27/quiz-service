@@ -185,6 +185,46 @@ textarea {
   line-height: 1.7;
 }
 
+.options-list.compact {
+  margin-top: 8px;
+}
+
+.muted {
+  color: #64748b;
+}
+
+.question-ribbon {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.question-tile {
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 12px;
+  background: #f8fafc;
+}
+
+.question-tile h4 {
+  margin-top: 0;
+  margin-bottom: 6px;
+}
+
+.question-live-block {
+  margin-top: 10px;
+}
+
+.hidden {
+  display: none;
+}
+
+.correct-answer {
+  color: #15803d;
+  font-weight: 700;
+}
+
 .status-grid {
   margin-top: 10px;
   display: grid;

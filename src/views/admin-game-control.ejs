@@ -1,133 +1,96 @@
 <%- include('partials/header', { title: 'Управление игрой', user }) %>
 
-<section class="card" style="position:sticky; top:10px; z-index:5;">
+<section class="card">
   <h1><%= game.title %> • управление игрой</h1>
-  <p>
+  <div class="row wrap">
     <a class="button button-outline" href="/admin/games/<%= game.id %>/build">Создание игры</a>
     <a class="button" href="/admin/games/<%= game.id %>/control">Управление игрой</a>
-  </p>
-  <h2>Быстрый блок ведущего (приоритет)</h2>
-  <div id="host-question-box" class="notice">
-    Нет активного вопроса.
-  </div>
-  <div class="row wrap">
-    <button class="button" id="start-round" <%= rounds.length ? '' : 'disabled' %>>Запустить раунд</button>
-    <button class="button" id="next-question">Следующий вопрос</button>
-    <button class="button" id="close-question">Закрыть вопрос</button>
-    <button class="button" id="reveal-answer">Показать верный ответ</button>
-    <button class="button button-danger" id="finish-game">Завершить игру</button>
-  </div>
-  <div class="inline-form">
-    <label for="start-round-id">Раунд:</label>
-    <% if (!rounds.length) { %>
-      <p class="muted">Сначала добавьте раунд в разделе «Создание игры».</p>
-    <% } else { %>
-      <select id="start-round-id">
-        <% rounds.forEach((round) => { %>
-        <option value="<%= round.id %>"><%= round.name %> (<%= round.question_type %>)</option>
-        <% }) %>
-      </select>
-    <% } %>
   </div>
 </section>
 
-<details class="card" open>
-  <summary><strong>Запуски и история игры</strong></summary>
-  <h3>Текущий запуск</h3>
-  <% if (currentSessionId) { %>
-    <p>Активный запуск: #<%= currentSessionId %></p>
-    <button class="button" id="continue-current">Продолжить игру</button>
-  <% } else { %>
-    <p>Игра еще не запускалась или была завершена.</p>
-  <% } %>
-  <button class="button" id="start-new">Запустить новую игру</button>
-
-  <h3>История запусков</h3>
-  <% if (!sessions.length) { %>
-    <p>История пока пустая.</p>
-  <% } else { %>
-    <table>
-      <thead><tr><th>#</th><th>Статус</th><th>Запущена</th><th>Действие</th></tr></thead>
-      <tbody>
-      <% sessions.forEach((session) => { %>
-        <tr>
-          <td><%= session.session_number %></td>
-          <td><%= session.status %></td>
-          <td><%= session.started_at %></td>
-          <td>
-            <% if (session.status !== 'finished') { %>
-              <button class="button button-outline continue-session" data-session-id="<%= session.id %>">Продолжить</button>
-            <% } else { %>
-              <span>Завершена</span>
-            <% } %>
-          </td>
-        </tr>
-      <% }) %>
-      </tbody>
-    </table>
-  <% } %>
-</details>
-
-<details class="card" open>
-  <summary><strong>Настройки игры</strong></summary>
+<section class="card">
+  <h2>1. Начало игры</h2>
   <p>
-    <a class="button" href="/game/<%= game.code %>" target="_blank" rel="noopener noreferrer">Презентация игры</a>
+    <a class="button" href="/game/<%= game.code %>" target="_blank" rel="noopener noreferrer">Открыть экран игры</a>
   </p>
   <label>Ссылка для подключения</label>
   <div class="row wrap">
     <input type="text" id="join-link" value="<%= joinUrl %>" readonly />
     <button class="button" type="button" id="copy-link">Скопировать</button>
   </div>
-</details>
+  <details>
+    <summary>Запуски и история</summary>
+    <div class="row wrap">
+      <% if (currentSessionId) { %>
+        <button class="button" id="continue-current">Продолжить текущий запуск</button>
+      <% } %>
+      <button class="button" id="start-new">Запустить новую игру</button>
+      <button class="button button-danger" id="finish-game">Завершить игру</button>
+    </div>
+  </details>
+</section>
 
-<details class="card" open>
-  <summary><strong>Управление экраном игры</strong></summary>
+<section class="card">
+  <h2>2. Управление экраном игры</h2>
   <div class="row wrap">
-    <button class="button button-outline screen-toggle" data-key="showQr">QR-код</button>
-    <button class="button button-outline screen-toggle" data-key="showLeaderboard">Таблица очков</button>
-    <button class="button button-outline screen-toggle" data-key="showPlayers">Список игроков</button>
-    <button class="button button-outline screen-toggle" data-key="showWinners">Победители</button>
-    <button class="button button-outline screen-toggle" data-key="showRoundScores">Итоги раунда</button>
+    <button class="button button-outline screen-toggle" data-key="showQr">Показать/скрыть QR-код</button>
+    <button class="button button-outline screen-toggle" data-key="showLeaderboard">Показать/скрыть таблицу очков</button>
   </div>
-</details>
+</section>
 
-<details class="card" open>
-  <summary><strong>Подключенные игроки</strong></summary>
-  <div id="players-box">
-    <% if (!players.length) { %>
-      <p>Игроков пока нет.</p>
-    <% } else { %>
-      <ul>
-        <% players.forEach((player) => { %>
-          <li>#<%= player.id %> <strong><%= player.name %></strong> — <%= player.connected ? 'online' : 'offline' %> — <%= player.score %> очков</li>
-        <% }) %>
-      </ul>
-    <% } %>
+<section class="card">
+  <h2>3. Управление игрой</h2>
+  <% if (!rounds.length) { %>
+    <p class="notice">Добавьте раунды и вопросы в разделе «Создание игры».</p>
+  <% } else { %>
+    <label for="round-select">Раунд</label>
+    <select id="round-select"></select>
+    <div id="question-ribbon" class="question-ribbon"></div>
+  <% } %>
+</section>
+
+<section class="card">
+  <h2>4. Управление игроками</h2>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Игрок</th>
+          <th>Статус</th>
+          <% rounds.forEach((round) => { %>
+            <th><%= round.name %></th>
+          <% }) %>
+          <th>Итого</th>
+        </tr>
+      </thead>
+      <tbody id="players-score-body"></tbody>
+    </table>
   </div>
-</details>
-
-<details class="card" open>
-  <summary><strong>Создание игры</strong></summary>
-  <p>Добавление раундов и вопросов вынесено в отдельный раздел, чтобы блок ведущего оставался быстрым.</p>
-  <p><a class="button" href="/admin/games/<%= game.id %>/build">Перейти в создание игры</a></p>
-</details>
+</section>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
   const socket = io();
   const game = <%- JSON.stringify(game) %>;
-  const hostQuestionBox = document.getElementById('host-question-box');
+  const rounds = <%- JSON.stringify(rounds) %>;
+  const questionsByRound = <%- JSON.stringify(questionsByRound) %>;
+  const initialPlayers = <%- JSON.stringify(players) %>;
+  const roundScoreTable = <%- JSON.stringify(roundScoreTable) %>;
 
   socket.emit('host:join', { gameCode: game.code });
+
+  async function post(url, body = {}) {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    return response.json();
+  }
 
   document.getElementById('copy-link').onclick = async () => {
     await navigator.clipboard.writeText(document.getElementById('join-link').value);
   };
-
-  async function post(url, body = {}) {
-    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    return response.json();
-  }
 
   document.getElementById('start-new').onclick = async () => {
     await post('/api/admin/games/<%= game.id %>/start');
@@ -141,30 +104,6 @@
       location.reload();
     };
   }
-
-  document.querySelectorAll('.continue-session').forEach((button) => {
-    button.onclick = async () => {
-      await post('/api/admin/games/<%= game.id %>/continue', { sessionId: Number(button.dataset.sessionId) });
-      location.reload();
-    };
-  });
-
-  document.getElementById('start-round').onclick = async () => {
-    const roundId = Number(document.getElementById('start-round-id').value);
-    await post('/api/admin/games/<%= game.id %>/start-round', { roundId });
-  };
-
-  document.getElementById('next-question').onclick = async () => {
-    await post('/api/admin/games/<%= game.id %>/next-question');
-  };
-
-  document.getElementById('close-question').onclick = async () => {
-    await post('/api/admin/games/<%= game.id %>/close-question');
-  };
-
-  document.getElementById('reveal-answer').onclick = async () => {
-    await post('/api/admin/games/<%= game.id %>/reveal-answer');
-  };
 
   document.getElementById('finish-game').onclick = async () => {
     if (!confirm('Завершить игру сейчас?')) return;
@@ -181,35 +120,205 @@
     };
   });
 
-  socket.on('player:list', ({ players }) => {
-    const box = document.getElementById('players-box');
-    if (!players.length) {
-      box.innerHTML = '<p>Игроков пока нет.</p>';
+  const roundSelect = document.getElementById('round-select');
+  const questionRibbon = document.getElementById('question-ribbon');
+  const playersScoreBody = document.getElementById('players-score-body');
+
+  let activeQuestionId = null;
+  let livePlayers = initialPlayers.slice();
+  let liveRoundScores = new Map();
+  let answersByQuestion = new Map();
+
+  roundScoreTable.forEach((row) => {
+    row.byRound.forEach((roundData) => {
+      liveRoundScores.set(row.playerId + ':' + roundData.roundId, Number(roundData.score || 0));
+    });
+  });
+
+  function optionLetter(index) {
+    return String.fromCharCode(65 + index);
+  }
+
+  function formatAnswer(question, answer) {
+    if (!question) return '—';
+    if (question.type === 'abcd') {
+      const idx = Number(answer && answer.optionIndex);
+      if (!Number.isInteger(idx)) return '—';
+      const optionText = question.payload && question.payload.options && question.payload.options[idx] ? question.payload.options[idx] : '';
+      return optionLetter(idx) + '. ' + optionText;
+    }
+    if (question.type === 'text') return String(answer && answer.text || '—');
+    if (question.type === 'number') return String(answer && answer.number || '—');
+    return JSON.stringify(answer || {});
+  }
+
+  function findPlayerName(playerId) {
+    const player = livePlayers.find((item) => item.id === playerId);
+    return player ? player.name : '#' + playerId;
+  }
+
+  function renderAnswerRows(question) {
+    const rows = answersByQuestion.get(question.id) || [];
+    if (!rows.length) return '<tr><td colspan="3">Ответов пока нет.</td></tr>';
+    return rows.map((item) => '<tr>'
+      + '<td>' + findPlayerName(item.playerId) + '</td>'
+      + '<td>' + formatAnswer(question, item.answer) + '</td>'
+      + '<td>' + (item.isCorrect ? '✅ верно' : '❌ неверно') + '</td>'
+      + '</tr>').join('');
+  }
+
+  function renderQuestionRibbon() {
+    if (!roundSelect || !questionRibbon) return;
+
+    const roundId = Number(roundSelect.value);
+    const questions = questionsByRound[roundId] || [];
+    if (!questions.length) {
+      questionRibbon.innerHTML = '<p class="notice">В этом раунде нет вопросов.</p>';
       return;
     }
-    box.innerHTML = '<ul>' + players.map((player) => '<li>#' + player.id + ' <strong>' + player.name + '</strong> — ' + (player.connected ? 'online' : 'offline') + '</li>').join('') + '</ul>';
-  });
+
+    questionRibbon.innerHTML = questions.map((question, index) => {
+      const optionsHtml = question.type === 'abcd' && question.payload && Array.isArray(question.payload.options)
+        ? '<ul class="options-list compact">' + question.payload.options.map((option, optionIndex) => {
+            const correctClass = Number(question.payload.correct) === optionIndex ? 'correct-answer' : '';
+            return '<li class="' + correctClass + '">' + optionLetter(optionIndex) + '. ' + option + '</li>';
+          }).join('') + '</ul>'
+        : '<p class="muted">Тип: ' + question.type + '</p>';
+
+      const isActive = question.id === activeQuestionId;
+      const controlsClass = isActive ? '' : 'hidden';
+
+      return '<article class="question-tile" id="question-tile-' + question.id + '" data-question-id="' + question.id + '" data-round-id="' + roundId + '">'
+        + '<h4>' + (index + 1) + '. ' + question.title + '</h4>'
+        + optionsHtml
+        + '<div class="question-controls">'
+        + '  <button class="button show-question">Показать вопрос</button>'
+        + '</div>'
+        + '<div class="question-live-block ' + controlsClass + '">'
+        + '  <div class="row wrap">'
+        + '    <button class="button timer-start">Запустить таймер</button>'
+        + '    <button class="button button-outline timer-stop">Остановить таймер</button>'
+        + '    <button class="button reveal-answer">Показать ответ</button>'
+        + '    <button class="button button-outline close-question">Скрыть вопрос</button>'
+        + '  </div>'
+        + '  <div class="table-scroll">'
+        + '    <table>'
+        + '      <thead><tr><th>Игрок</th><th>Ответ</th><th>Результат</th></tr></thead>'
+        + '      <tbody class="answers-table-body">' + renderAnswerRows(question) + '</tbody>'
+        + '    </table>'
+        + '  </div>'
+        + '</div>'
+        + '</article>';
+    }).join('');
+
+    attachQuestionHandlers();
+  }
+
+  function attachQuestionHandlers() {
+    questionRibbon.querySelectorAll('.question-tile').forEach((tile) => {
+      const questionId = Number(tile.dataset.questionId);
+      const roundId = Number(tile.dataset.roundId);
+      const question = (questionsByRound[roundId] || []).find((q) => q.id === questionId);
+
+      tile.querySelector('.show-question').onclick = async () => {
+        const data = await post('/api/admin/games/<%= game.id %>/show-question', { roundId, questionId });
+        if (data.error) {
+          alert(data.error);
+          return;
+        }
+        activeQuestionId = questionId;
+        renderQuestionRibbon();
+        document.getElementById('question-tile-' + questionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      };
+
+      tile.querySelector('.timer-start').onclick = async () => {
+        await post('/api/admin/games/<%= game.id %>/timer/start', { seconds: (question.payload && question.payload.timeLimitSec) || 15 });
+      };
+      tile.querySelector('.timer-stop').onclick = async () => {
+        await post('/api/admin/games/<%= game.id %>/timer/stop');
+      };
+      tile.querySelector('.reveal-answer').onclick = async () => {
+        await post('/api/admin/games/<%= game.id %>/reveal-answer');
+      };
+      tile.querySelector('.close-question').onclick = async () => {
+        await post('/api/admin/games/<%= game.id %>/close-question');
+      };
+    });
+  }
+
+  function renderRoundSelect() {
+    if (!roundSelect) return;
+    roundSelect.innerHTML = rounds.map((round) => '<option value="' + round.id + '">' + round.name + ' (' + round.question_type + ')</option>').join('');
+    roundSelect.onchange = () => {
+      activeQuestionId = null;
+      renderQuestionRibbon();
+    };
+    renderQuestionRibbon();
+  }
+
+  function renderPlayersScoreTable() {
+    if (!playersScoreBody) return;
+    if (!livePlayers.length) {
+      playersScoreBody.innerHTML = '<tr><td colspan="' + (rounds.length + 3) + '">Игроков пока нет.</td></tr>';
+      return;
+    }
+
+    playersScoreBody.innerHTML = livePlayers.map((player) => {
+      const byRoundCells = rounds.map((round) => '<td>' + (liveRoundScores.get(player.id + ':' + round.id) || 0) + '</td>').join('');
+      return '<tr>'
+        + '<td><strong>' + player.name + '</strong></td>'
+        + '<td>' + (player.connected ? 'online' : 'offline') + '</td>'
+        + byRoundCells
+        + '<td><strong>' + Number(player.score || 0) + '</strong></td>'
+        + '</tr>';
+    }).join('');
+  }
 
   socket.on('question:show', (question) => {
-    let answerText = '';
-    if (question.type === 'abcd' && question.payload && Array.isArray(question.payload.options)) {
-      const idx = Number(question.payload.correct);
-      answerText = question.payload.options[idx] ? question.payload.options[idx] : '';
-    } else if (question.type === 'text') {
-      answerText = question.payload.correctText || '';
-    } else if (question.type === 'number') {
-      answerText = String(question.payload.correctNumber || '');
+    activeQuestionId = question.id;
+    if (!answersByQuestion.has(question.id)) {
+      answersByQuestion.set(question.id, []);
     }
-    hostQuestionBox.innerHTML = '<strong>Текущий вопрос:</strong> ' + question.title + '<br><strong>Тип:</strong> ' + question.type + '<br><strong>Правильный ответ:</strong> ' + (answerText || '—');
+    renderQuestionRibbon();
+    document.getElementById('question-tile-' + question.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 
-  socket.on('question:closed', () => {
-    hostQuestionBox.innerHTML += '<br><em>Вопрос закрыт</em>';
+  socket.on('question:status', ({ questionId, status }) => {
+    if (status === 'closed' && activeQuestionId === questionId) {
+      renderQuestionRibbon();
+    }
   });
 
-  socket.on('game:finished', () => {
-    hostQuestionBox.innerHTML = '<strong>Игра завершена.</strong> Можно запускать новую.';
+  socket.on('answer:received', (data) => {
+    if (!answersByQuestion.has(data.questionId)) {
+      answersByQuestion.set(data.questionId, []);
+    }
+    answersByQuestion.get(data.questionId).push(data);
+    if (activeQuestionId === data.questionId) {
+      renderQuestionRibbon();
+    }
   });
 
+  socket.on('player:list', ({ players }) => {
+    livePlayers = players.slice();
+    renderPlayersScoreTable();
+  });
+
+  socket.on('player:round-scores', ({ rows }) => {
+    rows.forEach((row) => {
+      liveRoundScores.set(row.player_id + ':' + row.round_id, Number(row.score || 0));
+    });
+    renderPlayersScoreTable();
+  });
+
+  socket.on('leaderboard:update', ({ leaderboard }) => {
+    const scoreMap = new Map(leaderboard.map((row) => [row.playerId || row.id, row.score]));
+    livePlayers = livePlayers.map((player) => ({ ...player, score: scoreMap.get(player.id) || player.score || 0 }));
+    renderPlayersScoreTable();
+  });
+
+  renderRoundSelect();
+  renderPlayersScoreTable();
 </script>
+
 <%- include('partials/footer') %>

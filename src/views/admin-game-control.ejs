@@ -193,6 +193,10 @@
       const controlsClass = isActive ? '' : 'hidden';
       const answersClass = (isActive || isPlayed) ? '' : 'hidden';
       const showQuestionDisabled = connectedPlayersCount ? '' : 'disabled';
+      const hasMedia = question.type === 'abcd'
+        && question.payload
+        && (question.payload.mediaType === 'audio' || question.payload.mediaType === 'video')
+        && question.payload.mediaUrl;
 
       return '<article class="question-tile" id="question-tile-' + question.id + '" data-question-id="' + question.id + '" data-round-id="' + roundId + '">'
         + '<h4>' + (index + 1) + '. ' + question.title + '</h4>'
@@ -204,6 +208,7 @@
         + '  <div class="row wrap">'
         + '    <button class="button timer-start">Запустить таймер</button>'
         + '    <button class="button button-outline timer-stop">Остановить таймер</button>'
+        + (hasMedia ? '    <button class="button button-outline media-start">Запустить медиа</button>' : '')
         + '    <button class="button reveal-answer">Показать ответ</button>'
         + '    <button class="button button-outline close-question">Скрыть вопрос</button>'
         + '  </div>'
@@ -246,6 +251,15 @@
       tile.querySelector('.timer-stop').onclick = async () => {
         await post('/api/admin/games/<%= game.id %>/timer/stop');
       };
+      const mediaButton = tile.querySelector('.media-start');
+      if (mediaButton) {
+        mediaButton.onclick = async () => {
+          const data = await post('/api/admin/games/<%= game.id %>/media/start');
+          if (data.error) {
+            alert(data.error);
+          }
+        };
+      }
       tile.querySelector('.reveal-answer').onclick = async () => {
         await post('/api/admin/games/<%= game.id %>/reveal-answer');
       };

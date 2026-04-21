@@ -386,6 +386,25 @@ router.post("/admin/games/:id/show-question", requireAdmin, async (req, res) => 
   res.json(result);
 });
 
+router.post("/admin/games/:id/media/start", requireAdmin, async (req, res) => {
+  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).json({ error: "Game not found" });
+
+  const liveGame = ensureGame(game.code);
+  if (!liveGame.currentQuestion) return res.status(400).json({ error: "Нет активного вопроса" });
+  const payload = liveGame.currentQuestion.payload || {};
+  const mediaType = payload.mediaType === "audio" || payload.mediaType === "video" ? payload.mediaType : "";
+  const mediaUrl = String(payload.mediaUrl || "").trim();
+  if (!mediaType || !mediaUrl) return res.status(400).json({ error: "У вопроса нет медиафайла" });
+
+  req.app.get("io").to(`game:${game.code}`).emit("question:media:start", {
+    questionId: liveGame.currentQuestion.id,
+    mediaType,
+    mediaUrl,
+  });
+  res.json({ ok: true, mediaType });
+});
+
 router.post("/admin/games/:id/timer/start", requireAdmin, async (req, res) => {
   const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
   if (!game) return res.status(404).json({ error: "Game not found" });

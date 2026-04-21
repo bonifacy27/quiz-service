@@ -113,15 +113,32 @@
                       <input type="number" name="points" min="1" step="1" value="<%= question.points %>" required />
                       <input type="text" name="title" maxlength="200" value="<%= question.title %>" required />
                       <input type="hidden" name="imageUrl" value="<%= question.payload.imageUrl || '' %>" class="image-url-input" />
+                      <input type="hidden" name="mediaUrl" value="<%= question.payload.mediaUrl || '' %>" class="media-url-input" />
+                      <input type="hidden" name="mediaType" value="<%= question.payload.mediaType || '' %>" class="media-type-input" />
                       <div class="upload-row">
                         <button class="button button-outline image-upload-btn" type="button">Картинка вопроса</button>
+                        <button class="button button-outline image-remove-btn" type="button">Удалить картинку</button>
                         <input type="file" accept="image/*" class="image-file-input" style="display:none" />
                         <span class="muted image-status"><%= question.payload.imageUrl ? 'Изображение загружено' : '' %></span>
+                      </div>
+                      <div class="upload-row">
+                        <button class="button button-outline media-upload-btn" type="button" data-media-kind="audio">Аудиофайл</button>
+                        <button class="button button-outline media-upload-btn" type="button" data-media-kind="video">Видеофайл</button>
+                        <button class="button button-outline media-remove-btn" type="button">Удалить медиа</button>
+                        <input type="file" accept=".mp3,audio/mpeg,.mp4,video/mp4" class="media-file-input" style="display:none" />
+                        <span class="muted media-status"><%= question.payload.mediaUrl ? (question.payload.mediaType === 'video' ? 'Видео загружено' : 'Аудио загружено') : '' %></span>
                       </div>
                       <div class="image-preview-wrap" <%= question.payload.imageUrl ? '' : 'style="display:none"' %>>
                         <a href="<%= question.payload.imageUrl || '#' %>" target="_blank" rel="noopener noreferrer" class="image-preview-link">
                           <img src="<%= question.payload.imageUrl || '' %>" alt="preview" class="image-preview-thumb" />
                         </a>
+                      </div>
+                      <div class="media-preview-wrap" <%= question.payload.mediaUrl ? '' : 'style="display:none"' %>>
+                        <% if (question.payload.mediaType === 'video') { %>
+                          <video src="<%= question.payload.mediaUrl || '' %>" controls class="media-preview-player"></video>
+                        <% } else { %>
+                          <audio src="<%= question.payload.mediaUrl || '' %>" controls class="media-preview-player"></audio>
+                        <% } %>
                       </div>
                       <div class="options-editor" data-options-editor>
                         <div class="options-list-box" data-options-list>
@@ -158,6 +175,8 @@
               <input type="hidden" name="roundId" value="<%= round.id %>" />
               <input type="hidden" name="type" value="<%= round.question_type %>" />
               <input type="hidden" name="imageUrl" value="" class="image-url-input" />
+              <input type="hidden" name="mediaUrl" value="" class="media-url-input" />
+              <input type="hidden" name="mediaType" value="" class="media-type-input" />
 
               <% if (round.question_type === 'abcd') { %>
                 <div class="question-add-row">
@@ -166,14 +185,23 @@
                 </div>
                 <div class="upload-row">
                   <button class="button button-outline image-upload-btn" type="button">Добавить картинку вопроса</button>
+                  <button class="button button-outline image-remove-btn" type="button">Удалить картинку</button>
                   <input type="file" accept="image/*" class="image-file-input" style="display:none" />
                   <span class="muted image-status"></span>
+                </div>
+                <div class="upload-row">
+                  <button class="button button-outline media-upload-btn" type="button" data-media-kind="audio">Аудиофайл</button>
+                  <button class="button button-outline media-upload-btn" type="button" data-media-kind="video">Видеофайл</button>
+                  <button class="button button-outline media-remove-btn" type="button">Удалить медиа</button>
+                  <input type="file" accept=".mp3,audio/mpeg,.mp4,video/mp4" class="media-file-input" style="display:none" />
+                  <span class="muted media-status"></span>
                 </div>
                 <div class="image-preview-wrap" style="display:none">
                   <a href="#" target="_blank" rel="noopener noreferrer" class="image-preview-link">
                     <img src="" alt="preview" class="image-preview-thumb" />
                   </a>
                 </div>
+                <div class="media-preview-wrap" style="display:none"></div>
                 <div class="options-editor" data-options-editor>
                   <div class="options-list-box" data-options-list></div>
                   <button class="button button-outline add-option-btn" type="button">+ Добавить вариант</button>
@@ -243,6 +271,20 @@
     if (!response.ok) throw new Error(data.error || 'Ошибка загрузки');
     imageUrlInput.value = data.url;
     statusEl.textContent = 'Изображение загружено';
+  }
+
+  async function uploadQuestionMedia(fileInput, mediaUrlInput, mediaTypeInput, statusEl) {
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+    statusEl.textContent = 'Загрузка...';
+    const formData = new FormData();
+    formData.append('media', file);
+    const response = await fetch('/admin/uploads/question-media', { method: 'POST', body: formData });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Ошибка загрузки');
+    mediaUrlInput.value = data.url;
+    mediaTypeInput.value = data.mediaType;
+    statusEl.textContent = data.mediaType === 'video' ? 'Видео загружено' : 'Аудио загружено';
   }
 
   function escapeHtml(value) {
@@ -337,6 +379,7 @@
 
   function wireImageUpload(form) {
     const button = form.querySelector('.image-upload-btn');
+    const removeButton = form.querySelector('.image-remove-btn');
     const fileInput = form.querySelector('.image-file-input');
     const imageUrlInput = form.querySelector('.image-url-input');
     const statusEl = form.querySelector('.image-status');
@@ -358,6 +401,83 @@
         statusEl.textContent = error.message || 'Ошибка загрузки';
       }
     });
+    if (removeButton) {
+      removeButton.addEventListener('click', () => {
+        imageUrlInput.value = '';
+        statusEl.textContent = 'Изображение удалено';
+        if (previewWrap && previewLink && previewThumb) {
+          previewWrap.style.display = 'none';
+          previewLink.href = '#';
+          previewThumb.src = '';
+        }
+      });
+    }
+  }
+
+  function wireMediaUpload(form) {
+    const fileInput = form.querySelector('.media-file-input');
+    const mediaUrlInput = form.querySelector('.media-url-input');
+    const mediaTypeInput = form.querySelector('.media-type-input');
+    const statusEl = form.querySelector('.media-status');
+    const removeButton = form.querySelector('.media-remove-btn');
+    const previewWrap = form.querySelector('.media-preview-wrap');
+    if (!fileInput || !mediaUrlInput || !mediaTypeInput || !statusEl) return;
+
+    function renderMediaPreview() {
+      if (!previewWrap) return;
+      previewWrap.innerHTML = '';
+      if (!mediaUrlInput.value || !mediaTypeInput.value) {
+        previewWrap.style.display = 'none';
+        return;
+      }
+      previewWrap.style.display = 'block';
+      if (mediaTypeInput.value === 'video') {
+        previewWrap.innerHTML = '<video src="' + escapeHtml(mediaUrlInput.value) + '" controls class="media-preview-player"></video>';
+      } else {
+        previewWrap.innerHTML = '<audio src="' + escapeHtml(mediaUrlInput.value) + '" controls class="media-preview-player"></audio>';
+      }
+    }
+
+    form.querySelectorAll('.media-upload-btn').forEach((button) => {
+      button.addEventListener('click', () => {
+        fileInput.dataset.expectedType = button.dataset.mediaKind || '';
+        fileInput.click();
+      });
+    });
+
+    fileInput.addEventListener('change', async () => {
+      const expectedType = fileInput.dataset.expectedType || '';
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+      const name = String(file.name || '').toLowerCase();
+      if (expectedType === 'audio' && !name.endsWith('.mp3')) {
+        statusEl.textContent = 'Для аудио выберите mp3';
+        return;
+      }
+      if (expectedType === 'video' && !name.endsWith('.mp4')) {
+        statusEl.textContent = 'Для видео выберите mp4';
+        return;
+      }
+      try {
+        await uploadQuestionMedia(fileInput, mediaUrlInput, mediaTypeInput, statusEl);
+        renderMediaPreview();
+      } catch (error) {
+        statusEl.textContent = error.message || 'Ошибка загрузки';
+      } finally {
+        fileInput.value = '';
+      }
+    });
+
+    if (removeButton) {
+      removeButton.addEventListener('click', () => {
+        mediaUrlInput.value = '';
+        mediaTypeInput.value = '';
+        statusEl.textContent = 'Медиа удалено';
+        renderMediaPreview();
+      });
+    }
+
+    renderMediaPreview();
   }
 
   function resetQuestionDraftForm(form) {
@@ -372,6 +492,17 @@
     if (previewWrap) previewWrap.style.display = 'none';
     if (previewLink) previewLink.href = '#';
     if (previewThumb) previewThumb.src = '';
+    const mediaUrlInput = form.querySelector('.media-url-input');
+    const mediaTypeInput = form.querySelector('.media-type-input');
+    const mediaStatusEl = form.querySelector('.media-status');
+    const mediaPreviewWrap = form.querySelector('.media-preview-wrap');
+    if (mediaUrlInput) mediaUrlInput.value = '';
+    if (mediaTypeInput) mediaTypeInput.value = '';
+    if (mediaStatusEl) mediaStatusEl.textContent = '';
+    if (mediaPreviewWrap) {
+      mediaPreviewWrap.innerHTML = '';
+      mediaPreviewWrap.style.display = 'none';
+    }
 
     const optionsList = form.querySelector('[data-options-list]');
     if (optionsList) {
@@ -398,6 +529,9 @@
       '</div>';
     }).join('');
     const imageUrl = question.payload && question.payload.imageUrl ? question.payload.imageUrl : '';
+    const mediaUrl = question.payload && question.payload.mediaUrl ? question.payload.mediaUrl : '';
+    const mediaType = question.payload && question.payload.mediaType ? question.payload.mediaType : '';
+    const mediaStatus = mediaUrl ? (mediaType === 'video' ? 'Видео загружено' : 'Аудио загружено') : '';
     const headerHtml =
       '<div class="build-question-header compact">' +
         '<span><strong>Вопрос</strong> ' + escapeHtml(question.title) + ' <span class="muted">(' + question.points + ')</span></span>' +
@@ -418,8 +552,15 @@
           '<input type="number" name="points" min="1" step="1" value="' + question.points + '" required />' +
           '<input type="text" name="title" maxlength="200" value="' + escapeHtml(question.title) + '" required />' +
           '<input type="hidden" name="imageUrl" value="' + escapeHtml(imageUrl) + '" class="image-url-input" />' +
-          '<div class="upload-row"><button class="button button-outline image-upload-btn" type="button">Картинка вопроса</button><input type="file" accept="image/*" class="image-file-input" style="display:none" /><span class="muted image-status">' + (imageUrl ? 'Изображение загружено' : '') + '</span></div>' +
+          '<input type="hidden" name="mediaUrl" value="' + escapeHtml(mediaUrl) + '" class="media-url-input" />' +
+          '<input type="hidden" name="mediaType" value="' + escapeHtml(mediaType) + '" class="media-type-input" />' +
+          '<div class="upload-row"><button class="button button-outline image-upload-btn" type="button">Картинка вопроса</button><button class="button button-outline image-remove-btn" type="button">Удалить картинку</button><input type="file" accept="image/*" class="image-file-input" style="display:none" /><span class="muted image-status">' + (imageUrl ? 'Изображение загружено' : '') + '</span></div>' +
+          '<div class="upload-row"><button class="button button-outline media-upload-btn" type="button" data-media-kind="audio">Аудиофайл</button><button class="button button-outline media-upload-btn" type="button" data-media-kind="video">Видеофайл</button><button class="button button-outline media-remove-btn" type="button">Удалить медиа</button><input type="file" accept=".mp3,audio/mpeg,.mp4,video/mp4" class="media-file-input" style="display:none" /><span class="muted media-status">' + mediaStatus + '</span></div>' +
           '<div class="image-preview-wrap" style="display:' + (imageUrl ? 'block' : 'none') + '"><a href="' + (imageUrl || '#') + '" target="_blank" rel="noopener noreferrer" class="image-preview-link"><img src="' + (imageUrl || '') + '" alt="preview" class="image-preview-thumb" /></a></div>' +
+          '<div class="media-preview-wrap" style="display:' + (mediaUrl ? 'block' : 'none') + '">' + (mediaUrl ? (mediaType === 'video'
+            ? '<video src="' + escapeHtml(mediaUrl) + '" controls class="media-preview-player"></video>'
+            : '<audio src="' + escapeHtml(mediaUrl) + '" controls class="media-preview-player"></audio>')
+            : '') + '</div>' +
           '<div class="options-editor" data-options-editor><div class="options-list-box" data-options-list>' + optionsHtml + '</div><button class="button button-outline add-option-btn" type="button">+ Добавить вариант</button></div>' +
           '<label>Комментарий для ведущего</label><textarea name="hostComment" rows="2">' + escapeHtml(question.payload && question.payload.hostComment ? question.payload.hostComment : '') + '</textarea>' +
           '<label>Лимит времени (сек)</label><input type="number" name="timeLimitSec" min="1" value="' + Number((question.payload && question.payload.timeLimitSec) || 15) + '" />' +
@@ -492,6 +633,7 @@
       form.classList.add('is-current');
       initOptionsEditor(form);
       wireImageUpload(form);
+      wireMediaUpload(form);
 
       form.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -522,6 +664,7 @@
           if (editForm) {
             initOptionsEditor(editForm);
             wireImageUpload(editForm);
+            wireMediaUpload(editForm);
           }
 
           form.querySelector('input[name="title"]').value = '';
@@ -571,6 +714,7 @@
   document.querySelectorAll('.question-edit-form').forEach((form) => {
     initOptionsEditor(form);
     wireImageUpload(form);
+    wireMediaUpload(form);
   });
 
   initRoundCardActions();

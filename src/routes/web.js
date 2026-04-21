@@ -16,6 +16,12 @@ const upload = multer({
     fileSize: 5 * 1024 * 1024,
   },
 });
+const uploadQuestionMedia = multer({
+  dest: config.uploadDir,
+  limits: {
+    fileSize: 30 * 1024 * 1024,
+  },
+});
 
 function requireAdmin(req, res, next) {
   if (!req.session.user) {
@@ -38,6 +44,9 @@ function getPublicBaseUrl(req) {
 function buildQuestionPayload(type, body) {
   const timeLimitSec = Number(body.timeLimitSec || 0);
   const imageUrl = String(body.imageUrl || "").trim();
+  const mediaUrl = String(body.mediaUrl || "").trim();
+  const mediaTypeRaw = String(body.mediaType || "").trim();
+  const mediaType = mediaTypeRaw === "audio" || mediaTypeRaw === "video" ? mediaTypeRaw : "";
   const hostComment = String(body.hostComment || "").trim().slice(0, 2000);
 
   if (type === "abcd") {
@@ -59,6 +68,8 @@ function buildQuestionPayload(type, body) {
         correct,
         timeLimitSec: timeLimitSec > 0 ? timeLimitSec : 15,
         imageUrl,
+        mediaUrl,
+        mediaType,
         hostComment,
       },
     };
@@ -111,6 +122,15 @@ router.post("/admin/uploads/question-image", requireAdmin, upload.single("image"
   if (!req.file) return res.status(400).json({ error: "Файл не загружен" });
   const filename = path.basename(req.file.filename);
   return res.json({ ok: true, url: `/uploads/${filename}` });
+});
+
+router.post("/admin/uploads/question-media", requireAdmin, uploadQuestionMedia.single("media"), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "Файл не загружен" });
+  const ext = String(path.extname(req.file.originalname || "").toLowerCase());
+  const mediaType = ext === ".mp3" ? "audio" : (ext === ".mp4" ? "video" : "");
+  if (!mediaType) return res.status(400).json({ error: "Разрешены только .mp3 и .mp4 файлы" });
+  const filename = path.basename(req.file.filename);
+  return res.json({ ok: true, url: `/uploads/${filename}`, mediaType });
 });
 
 function parseRoundSettings(body = {}) {

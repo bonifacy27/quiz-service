@@ -56,6 +56,7 @@
     let timerInterval = null;
     let latestLeaderboard = [];
     let activeTimerDurationMs = 0;
+    let activeMediaElement = null;
 
     function enableFullscreen() {
       if (document.fullscreenElement || !document.documentElement.requestFullscreen) return;
@@ -91,9 +92,17 @@
     socket.on('question:show', (question) => {
       answerBox.style.display = 'none';
       titleEl.innerText = '';
+      stopMediaPlayback();
       renderQuestion(question);
       activeTimerDurationMs = Number(question.payload && question.payload.timeLimitSec ? question.payload.timeLimitSec * 1000 : 0);
       startTimer(question.timerEndsAt, activeTimerDurationMs);
+    });
+
+    socket.on('question:media:start', ({ questionId, mediaType, mediaUrl }) => {
+      if (!mediaUrl || (mediaType !== 'audio' && mediaType !== 'video')) return;
+      const currentQuestionId = Number(contentEl.dataset.questionId || 0);
+      if (currentQuestionId !== Number(questionId || 0)) return;
+      startMediaPlayback(mediaType, mediaUrl);
     });
 
     socket.on('question:answer', ({ text, type, payload }) => {
@@ -116,6 +125,7 @@
 
     socket.on('question:closed', () => {
       stopTimer();
+      stopMediaPlayback();
     });
 
     socket.on('question:timer', ({ timerEndsAt, durationMs }) => {
@@ -131,6 +141,7 @@
       titleEl.innerText = 'Игра завершена';
       contentEl.innerHTML = '<div class="notice">Ведущий завершил игру. Можно запускать новую сессию.</div>';
       stopTimer();
+      stopMediaPlayback();
     });
 
     socket.on('player:list', ({ players }) => {
@@ -200,6 +211,7 @@
 
     function renderQuestion(question) {
       contentEl.innerHTML = '';
+      contentEl.dataset.questionId = String(question.id || '');
       renderQuestionImage(question.payload);
 
       const title = document.createElement('h2');
@@ -225,6 +237,44 @@
       } else {
         contentEl.innerHTML += '<div class="notice">Вопрос открыт. Игроки отвечают.</div>';
       }
+    }
+
+    function stopMediaPlayback() {
+      if (activeMediaElement) {
+        activeMediaElement.pause();
+        activeMediaElement.removeAttribute('src');
+        activeMediaElement.load();
+        activeMediaElement.remove();
+        activeMediaElement = null;
+      }
+    }
+
+    function startMediaPlayback(mediaType, mediaUrl) {
+      stopMediaPlayback();
+      if (mediaType === 'audio') {
+        const audio = document.createElement('audio');
+        audio.src = mediaUrl;
+        audio.autoplay = true;
+        audio.controls = true;
+        audio.className = 'question-audio';
+        activeMediaElement = audio;
+        contentEl.appendChild(audio);
+        audio.play().catch(() => {});
+        return;
+      }
+
+      const image = contentEl.querySelector('.question-media');
+      if (image) image.remove();
+      const video = document.createElement('video');
+      video.src = mediaUrl;
+      video.autoplay = true;
+      video.controls = true;
+      video.className = 'question-media';
+      activeMediaElement = video;
+      const titleNode = contentEl.querySelector('.screen-question-title');
+      if (titleNode) titleNode.after(video);
+      else contentEl.prepend(video);
+      video.play().catch(() => {});
     }
   </script>
 </body>

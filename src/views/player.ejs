@@ -76,6 +76,17 @@
       }
     });
 
+    socket.on('question:answer', ({ type, payload }) => {
+      if (type === 'abcd' && payload && Number.isInteger(Number(payload.correct))) {
+        const correctIndex = Number(payload.correct);
+        root.querySelectorAll('[data-option-index]').forEach((node) => {
+          if (Number(node.dataset.optionIndex) === correctIndex) {
+            node.classList.add('option-plate-correct');
+          }
+        });
+      }
+    });
+
     socket.on('buzz:winner', ({ playerId }) => {
       const div = document.createElement('div');
       div.className = 'notice';

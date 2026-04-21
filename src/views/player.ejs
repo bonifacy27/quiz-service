@@ -10,8 +10,7 @@
   <main class="fullscreen-stage">
     <section class="card fullscreen-card" id="player-question">
       <h2 id="question-title">Ожидание начала игры...</h2>
-      <div id="question-status" class="notice">Нет активного вопроса</div>
-      <div id="question-timer" class="notice" style="display:none"></div>
+      <div class="timer-strip"><div id="player-timer-fill" class="timer-strip-fill"></div></div>
       <div id="answer-result" class="notice" style="display:none"></div>
       <div id="player-content"></div>
     </section>
@@ -23,14 +22,15 @@
     const player = <%- JSON.stringify(player) %>;
     const game = <%- JSON.stringify(game) %>;
     const root = document.getElementById('player-content');
-    const timerBox = document.getElementById('question-timer');
     const answerResultBox = document.getElementById('answer-result');
-    const questionStatusBox = document.getElementById('question-status');
     const questionTitle = document.getElementById('question-title');
+    const timerFill = document.getElementById('player-timer-fill');
+
     let timerInterval = null;
     let answeredQuestionIds = new Set();
     let currentQuestion = null;
     let selectedOptionIndex = null;
+    let activeTimerDurationMs = 0;
 
     function enableFullscreen() {
       if (document.fullscreenElement || !document.documentElement.requestFullscreen) return;
@@ -48,15 +48,32 @@
     socket.on('question:show', (question) => {
       currentQuestion = question;
       selectedOptionIndex = null;
+      activeTimerDurationMs = Number(question.payload && question.payload.timeLimitSec ? question.payload.timeLimitSec * 1000 : 0);
       renderQuestion(question);
     });
 
-    socket.on('question:closed', ({ questionId, reason }) => {
+    socket.on('question:closed', ({ questionId }) => {
       if (currentQuestion && currentQuestion.id === questionId) {
         currentQuestion.status = 'closed';
       }
       lockInputs();
-      setQuestionStatus('closed', reason);
+      stopTimer();
+    });
+
+    socket.on('question:timer', ({ timerEndsAt, durationMs }) => {
+      if (durationMs) activeTimerDurationMs = Number(durationMs);
+      startTimer(timerEndsAt || null, activeTimerDurationMs);
+    });
+
+    socket.on('question:answer', ({ type, payload }) => {
+      if (type === 'abcd' && payload && Number.isInteger(Number(payload.correct))) {
+        const correctIndex = Number(payload.correct);
+        root.querySelectorAll('[data-option-index]').forEach((node) => {
+          if (Number(node.dataset.optionIndex) === correctIndex) {
+            node.classList.add('option-plate-correct');
+          }
+        });
+      }
     });
 
     socket.on('question:answer', ({ type, payload }) => {
@@ -73,46 +90,35 @@
     socket.on('buzz:winner', ({ playerId }) => {
       const div = document.createElement('div');
       div.className = 'notice';
-      div.innerText = playerId === player.id ? 'Вы нажали первым! Ответ принят.' : 'Кто-то уже нажал первым';
+      div.innerText = playerId === player.id ? 'Вы нажали первым!' : 'Кто-то уже нажал первым';
       root.appendChild(div);
       lockInputs();
     });
 
     socket.on('answer:result', ({ questionId, scoreDelta }) => {
       answeredQuestionIds.add(questionId);
-      answerResultBox.style.display = 'block';
-      answerResultBox.innerText = 'Ответ принят.';
+      answerResultBox.innerHTML = '';
       if (scoreDelta > 0) {
+        answerResultBox.style.display = 'block';
         const bonus = document.createElement('span');
         bonus.className = 'score-bonus-pop';
-        bonus.innerText = ' +' + scoreDelta;
+        bonus.innerText = '+' + scoreDelta;
         answerResultBox.appendChild(bonus);
-        setTimeout(() => bonus.remove(), 1000);
+        setTimeout(() => {
+          bonus.remove();
+          answerResultBox.style.display = 'none';
+        }, 1000);
+      } else {
+        answerResultBox.style.display = 'none';
       }
       lockInputs();
     });
 
     socket.on('answer:rejected', ({ reason, message }) => {
-      if (reason === 'already_answered') return;
+      if (reason === 'already_answered' || reason === 'question_closed') return;
       answerResultBox.style.display = 'block';
-      if (reason === 'question_closed') {
-        answerResultBox.innerText = 'Вопрос завершен. Ответы больше не принимаются.';
-        setQuestionStatus('closed');
-      } else {
-        answerResultBox.innerText = message || 'Ответ не принят';
-      }
+      answerResultBox.innerText = message || 'Ответ не принят';
     });
-
-    function setQuestionStatus(status, reason) {
-      if (status === 'active') {
-        questionStatusBox.innerText = 'Прием ответов открыт';
-      } else if (status === 'closed') {
-        questionStatusBox.innerText = 'Вопрос завершен. Прием ответов закрыт.' + (reason ? ' (' + reason + ')' : '');
-        stopTimer();
-      } else {
-        questionStatusBox.innerText = 'Нет активного вопроса';
-      }
-    }
 
     function lockInputs() {
       root.querySelectorAll('button, input').forEach((el) => {
@@ -125,32 +131,24 @@
         clearInterval(timerInterval);
         timerInterval = null;
       }
+      timerFill.style.width = '0%';
     }
 
-    function startTimer(timerEndsAt) {
+    function startTimer(timerEndsAt, durationMs) {
       stopTimer();
-
-      if (!timerEndsAt) {
-        timerBox.style.display = 'none';
-        timerBox.innerText = '';
-        return;
-      }
-
-      timerBox.style.display = 'block';
+      if (!timerEndsAt) return;
 
       function tick() {
-        const msLeft = timerEndsAt - Date.now();
-        const secLeft = Math.max(0, Math.ceil(msLeft / 1000));
-        timerBox.innerText = 'Осталось времени: ' + secLeft + ' сек.';
-
-        if (msLeft <= 0) {
-          stopTimer();
-          timerBox.innerText = 'Осталось времени: 0 сек.';
+        const msLeft = Math.max(0, timerEndsAt - Date.now());
+        if (durationMs > 0) {
+          const percent = Math.max(0, Math.min(100, (msLeft / durationMs) * 100));
+          timerFill.style.width = percent + '%';
         }
+        if (msLeft <= 0) stopTimer();
       }
 
       tick();
-      timerInterval = setInterval(tick, 250);
+      timerInterval = setInterval(tick, 100);
     }
 
     function canSubmit(question) {
@@ -178,10 +176,9 @@
     function renderQuestion(question) {
       root.innerHTML = '';
       answerResultBox.style.display = 'none';
-      answerResultBox.innerText = '';
+      answerResultBox.innerHTML = '';
       questionTitle.innerText = question.title;
-      setQuestionStatus(question.status || 'active');
-      startTimer(question.timerEndsAt);
+      startTimer(question.timerEndsAt, activeTimerDurationMs);
       renderQuestionImage(question.payload);
 
       const submitAllowed = canSubmit(question);
@@ -267,15 +264,12 @@
         root.appendChild(btn);
       }
 
-      if (!submitAllowed) {
-        answerResultBox.style.display = 'block';
-        answerResultBox.innerText = question.status === 'closed'
-          ? 'Вопрос завершен. Ответы больше не принимаются.'
-          : 'Ответ принят.';
-      }
-
       if (selectedOptionIndex !== null) {
         markSelectedOption(selectedOptionIndex);
+      }
+
+      if (!submitAllowed) {
+        lockInputs();
       }
     }
   </script>

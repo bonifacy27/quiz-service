@@ -106,8 +106,12 @@
           }
         });
       }
-      answerBox.innerText = text || 'Верный ответ показан';
-      answerBox.style.display = 'block';
+      if (type === 'abcd') {
+        answerBox.style.display = 'none';
+      } else {
+        answerBox.innerText = 'Правильный ответ показан';
+        answerBox.style.display = 'block';
+      }
     });
 
     socket.on('question:closed', () => {

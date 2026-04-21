@@ -492,6 +492,15 @@ details > summary {
   flex-wrap: wrap;
 }
 
+.media-preview-wrap {
+  margin: 8px 0;
+}
+
+.media-preview-player {
+  display: block;
+  width: min(100%, 520px);
+}
+
 @media (max-width: 720px) {
   .question-add-row {
     grid-template-columns: 1fr;

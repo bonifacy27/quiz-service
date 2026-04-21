@@ -51,10 +51,19 @@ async function emitPlayerStatus(io, gameCode) {
   const game = await get("SELECT id, current_session_id FROM games WHERE code = ?", [gameCode]);
   if (!game || !game.current_session_id) return;
   const players = await all(
-    "SELECT id, name, connected FROM players WHERE game_id = ? AND session_id = ? ORDER BY id ASC",
+    "SELECT id, name, connected, score FROM players WHERE game_id = ? AND session_id = ? ORDER BY score DESC, id ASC",
+    [game.id, game.current_session_id]
+  );
+  const roundScores = await all(
+    `SELECT pa.player_id, q.round_id, COALESCE(SUM(pa.score_delta), 0) AS score
+     FROM player_answers pa
+     JOIN questions q ON q.id = pa.question_id
+     WHERE pa.game_id = ? AND pa.session_id = ?
+     GROUP BY pa.player_id, q.round_id`,
     [game.id, game.current_session_id]
   );
   io.to(`host:${gameCode}`).emit("player:list", { players });
+  io.to(`host:${gameCode}`).emit("player:round-scores", { rows: roundScores });
 }
 
 function registerGameSocket(io) {

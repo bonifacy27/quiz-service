@@ -8,12 +8,12 @@
 </head>
 <body class="fullscreen-page">
   <main class="fullscreen-stage">
-    <section class="card fullscreen-card">
+    <section class="card fullscreen-card" id="question-block">
       <h1 id="screen-title"><%= game.title %></h1>
       <div class="screen-meta">
-        <span><strong>Статус:</strong> <span id="screen-status">Ожидание</span></span>
         <span><strong>Таймер:</strong> <span id="screen-timer">—</span></span>
       </div>
+      <div class="timer-strip"><div id="timer-strip-fill" class="timer-strip-fill"></div></div>
       <div id="screen-content"></div>
       <div id="answer-box" class="notice" style="display:none"></div>
     </section>
@@ -40,14 +40,22 @@
     const game = <%- JSON.stringify(game) %>;
     const titleEl = document.getElementById('screen-title');
     const contentEl = document.getElementById('screen-content');
-    const statusEl = document.getElementById('screen-status');
     const timerEl = document.getElementById('screen-timer');
+    const timerStripFill = document.getElementById('timer-strip-fill');
     const answerBox = document.getElementById('answer-box');
     const leaderboardBody = document.getElementById('leaderboard-body');
     const winnersList = document.getElementById('winners-list');
     const playersList = document.getElementById('players-list');
+    const questionBlock = document.getElementById('question-block');
+    const qrBlock = document.getElementById('qr-block');
+    const leaderboardBlock = document.getElementById('leaderboard-block');
+    const playersBlock = document.getElementById('players-block');
+    const winnersBlock = document.getElementById('winners-block');
+    const roundScoresBlock = document.getElementById('round-scores-block');
+
     let timerInterval = null;
     let latestLeaderboard = [];
+    let activeTimerDurationMs = 0;
 
     function enableFullscreen() {
       if (document.fullscreenElement || !document.documentElement.requestFullscreen) return;
@@ -59,30 +67,56 @@
     socket.emit('screen:join', { gameCode: game.code });
 
     socket.on('screen:state', (state) => {
-      document.getElementById('qr-block').style.display = state.showQr ? 'block' : 'none';
-      document.getElementById('leaderboard-block').style.display = state.showLeaderboard ? 'block' : 'none';
-      document.getElementById('players-block').style.display = state.showPlayers ? 'block' : 'none';
-      document.getElementById('winners-block').style.display = state.showWinners ? 'block' : 'none';
-      document.getElementById('round-scores-block').style.display = state.showRoundScores ? 'block' : 'none';
+      const showQrOnly = Boolean(state.showQr);
+      const showLeaderboardOnly = Boolean(state.showLeaderboard);
+
+      if (showQrOnly || showLeaderboardOnly) {
+        questionBlock.style.display = 'none';
+        playersBlock.style.display = 'none';
+        winnersBlock.style.display = 'none';
+        roundScoresBlock.style.display = 'none';
+        qrBlock.style.display = showQrOnly ? 'block' : 'none';
+        leaderboardBlock.style.display = showLeaderboardOnly ? 'block' : 'none';
+      } else {
+        questionBlock.style.display = 'block';
+        qrBlock.style.display = 'none';
+        leaderboardBlock.style.display = 'none';
+        playersBlock.style.display = state.showPlayers ? 'block' : 'none';
+        winnersBlock.style.display = state.showWinners ? 'block' : 'none';
+        roundScoresBlock.style.display = state.showRoundScores ? 'block' : 'none';
+      }
       renderWinners(latestLeaderboard);
     });
 
     socket.on('question:show', (question) => {
       answerBox.style.display = 'none';
-      titleEl.innerText = question.title;
+      titleEl.innerText = game.title;
       renderQuestion(question);
-      setStatus(question.status || 'active');
-      startTimer(question.timerEndsAt);
+      activeTimerDurationMs = Number(question.payload && question.payload.timeLimitSec ? question.payload.timeLimitSec * 1000 : 0);
+      startTimer(question.timerEndsAt, activeTimerDurationMs);
     });
 
-    socket.on('question:answer', ({ text }) => {
+    socket.on('question:answer', ({ text, type, payload }) => {
+      if (type === 'abcd' && payload && Number.isInteger(Number(payload.correct))) {
+        const correctIndex = Number(payload.correct);
+        const optionNodes = contentEl.querySelectorAll('[data-option-index]');
+        optionNodes.forEach((node) => {
+          if (Number(node.dataset.optionIndex) === correctIndex) {
+            node.classList.add('option-plate-correct');
+          }
+        });
+      }
       answerBox.innerText = text || 'Верный ответ показан';
       answerBox.style.display = 'block';
     });
 
     socket.on('question:closed', () => {
-      setStatus('closed');
       stopTimer();
+    });
+
+    socket.on('question:timer', ({ timerEndsAt, durationMs }) => {
+      if (durationMs) activeTimerDurationMs = Number(durationMs);
+      startTimer(timerEndsAt || null, activeTimerDurationMs);
     });
 
     socket.on('round:finished', ({ rows }) => {
@@ -93,7 +127,6 @@
       titleEl.innerText = 'Игра завершена';
       contentEl.innerHTML = '<div class="notice">Ведущий завершил игру. Можно запускать новую сессию.</div>';
       stopTimer();
-      setStatus('idle');
     });
 
     socket.on('player:list', ({ players }) => {
@@ -120,20 +153,36 @@
       });
     }
 
-    function setStatus(status) {
-      statusEl.innerText = status === 'active' ? 'Прием ответов открыт' : status === 'closed' ? 'Вопрос закрыт' : 'Ожидание';
-    }
-    function stopTimer() { if (timerInterval) { clearInterval(timerInterval); timerInterval = null; } }
-    function startTimer(timerEndsAt) {
-      stopTimer();
-      if (!timerEndsAt) { timerEl.innerText = '—'; return; }
-      function tick() {
-        const secLeft = Math.max(0, Math.ceil((timerEndsAt - Date.now()) / 1000));
-        timerEl.innerText = secLeft + ' сек';
-        if (secLeft <= 0) stopTimer();
+    function stopTimer() {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
       }
+      timerEl.innerText = '—';
+      timerStripFill.style.width = '0%';
+    }
+
+    function startTimer(timerEndsAt, durationMs) {
+      stopTimer();
+      if (!timerEndsAt) return;
+
+      function tick() {
+        const msLeft = Math.max(0, timerEndsAt - Date.now());
+        const secLeft = Math.ceil(msLeft / 1000);
+        timerEl.innerText = secLeft + ' сек';
+
+        if (durationMs > 0) {
+          const percent = Math.max(0, Math.min(100, (msLeft / durationMs) * 100));
+          timerStripFill.style.width = percent + '%';
+        }
+
+        if (msLeft <= 0) {
+          stopTimer();
+        }
+      }
+
       tick();
-      timerInterval = setInterval(tick, 250);
+      timerInterval = setInterval(tick, 100);
     }
 
     function renderQuestionImage(payload) {
@@ -149,15 +198,24 @@
       contentEl.innerHTML = '';
       renderQuestionImage(question.payload);
 
+      const title = document.createElement('h2');
+      title.className = 'screen-question-title';
+      title.innerText = question.title;
+      contentEl.appendChild(title);
+
       if (question.type === 'abcd' && question.payload && Array.isArray(question.payload.options)) {
-        const ul = document.createElement('ul');
-        ul.className = 'options-list';
-        question.payload.options.forEach((option) => {
-          const li = document.createElement('li');
-          li.innerText = option;
-          ul.appendChild(li);
+        const optionsGrid = document.createElement('div');
+        optionsGrid.className = 'options-grid';
+
+        question.payload.options.forEach((option, index) => {
+          const item = document.createElement('div');
+          item.className = 'option-plate';
+          item.dataset.optionIndex = String(index);
+          item.innerText = String.fromCharCode(65 + index) + '. ' + option;
+          optionsGrid.appendChild(item);
         });
-        contentEl.appendChild(ul);
+
+        contentEl.appendChild(optionsGrid);
       } else if (question.type === 'buzz') {
         contentEl.innerHTML += '<div class="big-label">Кто быстрее нажмет первым?</div>';
       } else {

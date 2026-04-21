@@ -1,6 +1,7 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
+const fs = require("fs/promises");
 const path = require("path");
 const multer = require("multer");
 const QRCode = require("qrcode");
@@ -119,9 +120,36 @@ function buildQuestionPayload(type, body) {
 }
 
 router.post("/admin/uploads/question-image", requireAdmin, upload.single("image"), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "Файл не загружен" });
-  const filename = path.basename(req.file.filename);
-  return res.json({ ok: true, url: `/uploads/${filename}` });
+  (async () => {
+    if (!req.file) return res.status(400).json({ error: "Файл не загружен" });
+
+    const rawExt = String(path.extname(req.file.originalname || "").toLowerCase());
+    const ext = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg"].includes(rawExt) ? rawExt : "";
+    if (!ext) return res.status(400).json({ error: "Разрешены только файлы изображений" });
+
+    const safeName = `${path.basename(req.file.filename)}${ext}`;
+    const targetPath = path.join(config.uploadDir, safeName);
+    await fs.rename(req.file.path, targetPath);
+    return res.json({ ok: true, url: `/uploads/${safeName}` });
+  })().catch(() => {
+    res.status(500).json({ error: "Не удалось сохранить изображение" });
+  });
+});
+
+router.post("/admin/uploads/question-media", requireAdmin, uploadQuestionMedia.single("media"), (req, res) => {
+  (async () => {
+    if (!req.file) return res.status(400).json({ error: "Файл не загружен" });
+    const ext = String(path.extname(req.file.originalname || "").toLowerCase());
+    const mediaType = ext === ".mp3" ? "audio" : (ext === ".mp4" ? "video" : "");
+    if (!mediaType) return res.status(400).json({ error: "Разрешены только .mp3 и .mp4 файлы" });
+
+    const safeName = `${path.basename(req.file.filename)}${ext}`;
+    const targetPath = path.join(config.uploadDir, safeName);
+    await fs.rename(req.file.path, targetPath);
+    return res.json({ ok: true, url: `/uploads/${safeName}`, mediaType });
+  })().catch(() => {
+    res.status(500).json({ error: "Не удалось сохранить медиафайл" });
+  });
 });
 
 router.post("/admin/uploads/question-media", requireAdmin, uploadQuestionMedia.single("media"), (req, res) => {

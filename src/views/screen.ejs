@@ -90,7 +90,7 @@
 
     socket.on('question:show', (question) => {
       answerBox.style.display = 'none';
-      titleEl.innerText = game.title;
+      titleEl.innerText = '';
       renderQuestion(question);
       activeTimerDurationMs = Number(question.payload && question.payload.timeLimitSec ? question.payload.timeLimitSec * 1000 : 0);
       startTimer(question.timerEndsAt, activeTimerDurationMs);

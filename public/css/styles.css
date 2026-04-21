@@ -195,8 +195,8 @@ textarea {
 
 .question-ribbon {
   margin-top: 14px;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 12px;
 }
 
@@ -210,6 +210,14 @@ textarea {
 .question-tile h4 {
   margin-top: 0;
   margin-bottom: 6px;
+}
+
+.question-live-block {
+  margin-top: 10px;
+}
+
+.hidden {
+  display: none;
 }
 
 .correct-answer {

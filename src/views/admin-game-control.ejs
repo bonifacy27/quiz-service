@@ -27,27 +27,6 @@
       <button class="button" id="start-new">Запустить новую игру</button>
       <button class="button button-danger" id="finish-game">Завершить игру</button>
     </div>
-    <% if (sessions.length) { %>
-      <table>
-        <thead><tr><th>#</th><th>Статус</th><th>Запущена</th><th>Действие</th></tr></thead>
-        <tbody>
-          <% sessions.forEach((session) => { %>
-            <tr>
-              <td><%= session.session_number %></td>
-              <td><%= session.status %></td>
-              <td><%= session.started_at %></td>
-              <td>
-                <% if (session.status !== 'finished') { %>
-                  <button class="button button-outline continue-session" data-session-id="<%= session.id %>">Продолжить</button>
-                <% } else { %>
-                  <span>Завершена</span>
-                <% } %>
-              </td>
-            </tr>
-          <% }) %>
-        </tbody>
-      </table>
-    <% } %>
   </details>
 </section>
 
@@ -66,25 +45,7 @@
   <% } else { %>
     <label for="round-select">Раунд</label>
     <select id="round-select"></select>
-
     <div id="question-ribbon" class="question-ribbon"></div>
-
-    <div id="host-question-box" class="notice" style="display:none"></div>
-    <div id="question-actions" class="row wrap" style="display:none">
-      <button class="button" id="timer-start">Запустить таймер</button>
-      <button class="button button-outline" id="timer-stop">Остановить таймер</button>
-      <button class="button" id="reveal-answer">Показать ответ</button>
-      <button class="button button-outline" id="close-question">Скрыть вопрос</button>
-      <button class="button" id="next-question">Следующий вопрос</button>
-    </div>
-
-    <div id="answers-box" class="table-scroll" style="display:none">
-      <h3>Ответы игроков по текущему вопросу</h3>
-      <table>
-        <thead><tr><th>Игрок</th><th>Ответ</th><th>Результат</th></tr></thead>
-        <tbody id="answers-table-body"></tbody>
-      </table>
-    </div>
   <% } %>
 </section>
 
@@ -102,22 +63,7 @@
           <th>Итого</th>
         </tr>
       </thead>
-      <tbody id="players-score-body">
-        <% if (!roundScoreTable.length) { %>
-          <tr><td colspan="<%= rounds.length + 3 %>">Игроков пока нет.</td></tr>
-        <% } else { %>
-          <% roundScoreTable.forEach((playerRow) => { %>
-            <tr>
-              <td><strong><%= playerRow.name %></strong></td>
-              <td><%= (players.find((p) => p.id === playerRow.playerId) || {}).connected ? 'online' : 'offline' %></td>
-              <% playerRow.byRound.forEach((roundData) => { %>
-                <td><%= roundData.score %></td>
-              <% }) %>
-              <td><strong><%= playerRow.total %></strong></td>
-            </tr>
-          <% }) %>
-        <% } %>
-      </tbody>
+      <tbody id="players-score-body"></tbody>
     </table>
   </div>
 </section>
@@ -159,13 +105,6 @@
     };
   }
 
-  document.querySelectorAll('.continue-session').forEach((button) => {
-    button.onclick = async () => {
-      await post('/api/admin/games/<%= game.id %>/continue', { sessionId: Number(button.dataset.sessionId) });
-      location.reload();
-    };
-  });
-
   document.getElementById('finish-game').onclick = async () => {
     if (!confirm('Завершить игру сейчас?')) return;
     await post('/api/admin/games/<%= game.id %>/finish');
@@ -183,16 +122,12 @@
 
   const roundSelect = document.getElementById('round-select');
   const questionRibbon = document.getElementById('question-ribbon');
-  const hostQuestionBox = document.getElementById('host-question-box');
-  const questionActions = document.getElementById('question-actions');
-  const answersBox = document.getElementById('answers-box');
-  const answersTableBody = document.getElementById('answers-table-body');
   const playersScoreBody = document.getElementById('players-score-body');
 
-  let activeQuestion = null;
-  let activeQuestionAnswers = [];
+  let activeQuestionId = null;
   let livePlayers = initialPlayers.slice();
   let liveRoundScores = new Map();
+  let answersByQuestion = new Map();
 
   roundScoreTable.forEach((row) => {
     row.byRound.forEach((roundData) => {
@@ -202,69 +137,6 @@
 
   function optionLetter(index) {
     return String.fromCharCode(65 + index);
-  }
-
-  function renderRoundSelect() {
-    if (!roundSelect) return;
-    roundSelect.innerHTML = rounds.map((round) => '<option value="' + round.id + '">' + round.name + ' (' + round.question_type + ')</option>').join('');
-    roundSelect.onchange = renderQuestionRibbon;
-    renderQuestionRibbon();
-  }
-
-  function renderQuestionRibbon() {
-    if (!roundSelect || !questionRibbon) return;
-    const roundId = Number(roundSelect.value);
-    const questions = questionsByRound[roundId] || [];
-
-    if (!questions.length) {
-      questionRibbon.innerHTML = '<p class="notice">В этом раунде нет вопросов.</p>';
-      return;
-    }
-
-    questionRibbon.innerHTML = questions.map((question, index) => {
-      const options = question.type === 'abcd' && question.payload && Array.isArray(question.payload.options)
-        ? '<ul class="options-list compact">' + question.payload.options.map((option, optionIndex) => {
-            const correctClass = Number(question.payload.correct) === optionIndex ? 'correct-answer' : '';
-            return '<li class="' + correctClass + '">' + optionLetter(optionIndex) + '. ' + option + '</li>';
-          }).join('') + '</ul>'
-        : '<p class="muted">Тип: ' + question.type + '</p>';
-      return '<article class="question-tile" data-question-id="' + question.id + '" data-round-id="' + roundId + '">'
-        + '<h4>' + (index + 1) + '. ' + question.title + '</h4>'
-        + options
-        + '<button class="button show-question">Показать вопрос</button>'
-        + '</article>';
-    }).join('');
-
-    questionRibbon.querySelectorAll('.show-question').forEach((button) => {
-      button.onclick = async () => {
-        const tile = button.closest('.question-tile');
-        const questionId = Number(tile.dataset.questionId);
-        const selectedRoundId = Number(tile.dataset.roundId);
-        const data = await post('/api/admin/games/<%= game.id %>/show-question', { roundId: selectedRoundId, questionId });
-        if (data.error) {
-          alert(data.error);
-          return;
-        }
-      };
-    });
-  }
-
-  function renderActiveQuestion(question) {
-    activeQuestion = question;
-    activeQuestionAnswers = [];
-    answersTableBody.innerHTML = '';
-    answersBox.style.display = 'block';
-
-    hostQuestionBox.style.display = 'block';
-    questionActions.style.display = 'flex';
-
-    const timerText = question.timerEndsAt ? new Date(question.timerEndsAt).toLocaleTimeString() : 'не запущен';
-    hostQuestionBox.innerHTML = '<strong>Активный вопрос:</strong> ' + question.title + '<br><strong>Таймер до:</strong> ' + timerText;
-  }
-
-  function findPlayerName(playerId) {
-    const player = livePlayers.find((item) => item.id === playerId);
-    return player ? player.name : '#' + playerId;
   }
 
   function formatAnswer(question, answer) {
@@ -280,18 +152,108 @@
     return JSON.stringify(answer || {});
   }
 
-  function renderAnswersTable() {
-    if (!activeQuestionAnswers.length) {
-      answersTableBody.innerHTML = '<tr><td colspan="3">Ответов пока нет.</td></tr>';
+  function findPlayerName(playerId) {
+    const player = livePlayers.find((item) => item.id === playerId);
+    return player ? player.name : '#' + playerId;
+  }
+
+  function renderAnswerRows(question) {
+    const rows = answersByQuestion.get(question.id) || [];
+    if (!rows.length) return '<tr><td colspan="3">Ответов пока нет.</td></tr>';
+    return rows.map((item) => '<tr>'
+      + '<td>' + findPlayerName(item.playerId) + '</td>'
+      + '<td>' + formatAnswer(question, item.answer) + '</td>'
+      + '<td>' + (item.isCorrect ? '✅ верно' : '❌ неверно') + '</td>'
+      + '</tr>').join('');
+  }
+
+  function renderQuestionRibbon() {
+    if (!roundSelect || !questionRibbon) return;
+
+    const roundId = Number(roundSelect.value);
+    const questions = questionsByRound[roundId] || [];
+    if (!questions.length) {
+      questionRibbon.innerHTML = '<p class="notice">В этом раунде нет вопросов.</p>';
       return;
     }
-    answersTableBody.innerHTML = activeQuestionAnswers.map((item) => {
-      return '<tr>'
-        + '<td>' + findPlayerName(item.playerId) + '</td>'
-        + '<td>' + formatAnswer(activeQuestion, item.answer) + '</td>'
-        + '<td>' + (item.isCorrect ? '✅ верно' : '❌ неверно') + '</td>'
-        + '</tr>';
+
+    questionRibbon.innerHTML = questions.map((question, index) => {
+      const optionsHtml = question.type === 'abcd' && question.payload && Array.isArray(question.payload.options)
+        ? '<ul class="options-list compact">' + question.payload.options.map((option, optionIndex) => {
+            const correctClass = Number(question.payload.correct) === optionIndex ? 'correct-answer' : '';
+            return '<li class="' + correctClass + '">' + optionLetter(optionIndex) + '. ' + option + '</li>';
+          }).join('') + '</ul>'
+        : '<p class="muted">Тип: ' + question.type + '</p>';
+
+      const isActive = question.id === activeQuestionId;
+      const controlsClass = isActive ? '' : 'hidden';
+
+      return '<article class="question-tile" id="question-tile-' + question.id + '" data-question-id="' + question.id + '" data-round-id="' + roundId + '">'
+        + '<h4>' + (index + 1) + '. ' + question.title + '</h4>'
+        + optionsHtml
+        + '<div class="question-controls">'
+        + '  <button class="button show-question">Показать вопрос</button>'
+        + '</div>'
+        + '<div class="question-live-block ' + controlsClass + '">'
+        + '  <div class="row wrap">'
+        + '    <button class="button timer-start">Запустить таймер</button>'
+        + '    <button class="button button-outline timer-stop">Остановить таймер</button>'
+        + '    <button class="button reveal-answer">Показать ответ</button>'
+        + '    <button class="button button-outline close-question">Скрыть вопрос</button>'
+        + '  </div>'
+        + '  <div class="table-scroll">'
+        + '    <table>'
+        + '      <thead><tr><th>Игрок</th><th>Ответ</th><th>Результат</th></tr></thead>'
+        + '      <tbody class="answers-table-body">' + renderAnswerRows(question) + '</tbody>'
+        + '    </table>'
+        + '  </div>'
+        + '</div>'
+        + '</article>';
     }).join('');
+
+    attachQuestionHandlers();
+  }
+
+  function attachQuestionHandlers() {
+    questionRibbon.querySelectorAll('.question-tile').forEach((tile) => {
+      const questionId = Number(tile.dataset.questionId);
+      const roundId = Number(tile.dataset.roundId);
+      const question = (questionsByRound[roundId] || []).find((q) => q.id === questionId);
+
+      tile.querySelector('.show-question').onclick = async () => {
+        const data = await post('/api/admin/games/<%= game.id %>/show-question', { roundId, questionId });
+        if (data.error) {
+          alert(data.error);
+          return;
+        }
+        activeQuestionId = questionId;
+        renderQuestionRibbon();
+        document.getElementById('question-tile-' + questionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      };
+
+      tile.querySelector('.timer-start').onclick = async () => {
+        await post('/api/admin/games/<%= game.id %>/timer/start', { seconds: (question.payload && question.payload.timeLimitSec) || 15 });
+      };
+      tile.querySelector('.timer-stop').onclick = async () => {
+        await post('/api/admin/games/<%= game.id %>/timer/stop');
+      };
+      tile.querySelector('.reveal-answer').onclick = async () => {
+        await post('/api/admin/games/<%= game.id %>/reveal-answer');
+      };
+      tile.querySelector('.close-question').onclick = async () => {
+        await post('/api/admin/games/<%= game.id %>/close-question');
+      };
+    });
+  }
+
+  function renderRoundSelect() {
+    if (!roundSelect) return;
+    roundSelect.innerHTML = rounds.map((round) => '<option value="' + round.id + '">' + round.name + ' (' + round.question_type + ')</option>').join('');
+    roundSelect.onchange = () => {
+      activeQuestionId = null;
+      renderQuestionRibbon();
+    };
+    renderQuestionRibbon();
   }
 
   function renderPlayersScoreTable() {
@@ -312,44 +274,29 @@
     }).join('');
   }
 
-  document.getElementById('timer-start')?.addEventListener('click', async () => {
-    if (!activeQuestion) return;
-    await post('/api/admin/games/<%= game.id %>/timer/start', { seconds: (activeQuestion.payload && activeQuestion.payload.timeLimitSec) || 15 });
-  });
-
-  document.getElementById('timer-stop')?.addEventListener('click', async () => {
-    await post('/api/admin/games/<%= game.id %>/timer/stop');
-  });
-
-  document.getElementById('reveal-answer')?.addEventListener('click', async () => {
-    await post('/api/admin/games/<%= game.id %>/reveal-answer');
-  });
-
-  document.getElementById('close-question')?.addEventListener('click', async () => {
-    await post('/api/admin/games/<%= game.id %>/close-question');
-  });
-
-  document.getElementById('next-question')?.addEventListener('click', async () => {
-    await post('/api/admin/games/<%= game.id %>/next-question');
-  });
-
   socket.on('question:show', (question) => {
-    renderActiveQuestion(question);
+    activeQuestionId = question.id;
+    if (!answersByQuestion.has(question.id)) {
+      answersByQuestion.set(question.id, []);
+    }
+    renderQuestionRibbon();
+    document.getElementById('question-tile-' + question.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 
-  socket.on('question:status', ({ status, reason, timerEndsAt }) => {
-    if (!hostQuestionBox || hostQuestionBox.style.display === 'none') return;
-    if (status === 'closed') {
-      hostQuestionBox.innerHTML += '<br><em>Вопрос завершен (' + reason + ')</em>';
-    } else if (timerEndsAt) {
-      hostQuestionBox.innerHTML = hostQuestionBox.innerHTML.split('<br><em>')[0] + '<br><strong>Таймер до:</strong> ' + new Date(timerEndsAt).toLocaleTimeString();
+  socket.on('question:status', ({ questionId, status }) => {
+    if (status === 'closed' && activeQuestionId === questionId) {
+      renderQuestionRibbon();
     }
   });
 
   socket.on('answer:received', (data) => {
-    if (!activeQuestion || data.questionId !== activeQuestion.id) return;
-    activeQuestionAnswers.push(data);
-    renderAnswersTable();
+    if (!answersByQuestion.has(data.questionId)) {
+      answersByQuestion.set(data.questionId, []);
+    }
+    answersByQuestion.get(data.questionId).push(data);
+    if (activeQuestionId === data.questionId) {
+      renderQuestionRibbon();
+    }
   });
 
   socket.on('player:list', ({ players }) => {
@@ -371,7 +318,6 @@
   });
 
   renderRoundSelect();
-  renderAnswersTable();
   renderPlayersScoreTable();
 </script>
 

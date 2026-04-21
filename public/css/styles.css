@@ -216,6 +216,10 @@ textarea {
   margin-top: 10px;
 }
 
+.question-live-controls {
+  margin-top: 10px;
+}
+
 .hidden {
   display: none;
 }

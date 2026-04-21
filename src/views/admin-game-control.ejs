@@ -128,6 +128,7 @@
   let livePlayers = initialPlayers.slice();
   let liveRoundScores = new Map();
   let answersByQuestion = new Map();
+  let playedQuestionIds = new Set();
 
   roundScoreTable.forEach((row) => {
     row.byRound.forEach((roundData) => {
@@ -186,7 +187,9 @@
         : '<p class="muted">Тип: ' + question.type + '</p>';
 
       const isActive = question.id === activeQuestionId;
+      const isPlayed = playedQuestionIds.has(question.id);
       const controlsClass = isActive ? '' : 'hidden';
+      const answersClass = (isActive || isPlayed) ? '' : 'hidden';
 
       return '<article class="question-tile" id="question-tile-' + question.id + '" data-question-id="' + question.id + '" data-round-id="' + roundId + '">'
         + '<h4>' + (index + 1) + '. ' + question.title + '</h4>'
@@ -194,13 +197,16 @@
         + '<div class="question-controls">'
         + '  <button class="button show-question">Показать вопрос</button>'
         + '</div>'
-        + '<div class="question-live-block ' + controlsClass + '">'
+        + '<div class="question-live-controls ' + controlsClass + '">'
         + '  <div class="row wrap">'
         + '    <button class="button timer-start">Запустить таймер</button>'
         + '    <button class="button button-outline timer-stop">Остановить таймер</button>'
         + '    <button class="button reveal-answer">Показать ответ</button>'
         + '    <button class="button button-outline close-question">Скрыть вопрос</button>'
         + '  </div>'
+        + '</div>'
+        + '<div class="question-live-block ' + answersClass + '">'
+        + (isPlayed && !isActive ? '<p class="muted">Вопрос уже сыгран.</p>' : '')
         + '  <div class="table-scroll">'
         + '    <table>'
         + '      <thead><tr><th>Игрок</th><th>Ответ</th><th>Результат</th></tr></thead>'
@@ -276,6 +282,7 @@
 
   socket.on('question:show', (question) => {
     activeQuestionId = question.id;
+    playedQuestionIds.add(question.id);
     if (!answersByQuestion.has(question.id)) {
       answersByQuestion.set(question.id, []);
     }
@@ -285,6 +292,7 @@
 
   socket.on('question:status', ({ questionId, status }) => {
     if (status === 'closed' && activeQuestionId === questionId) {
+      playedQuestionIds.add(questionId);
       renderQuestionRibbon();
     }
   });

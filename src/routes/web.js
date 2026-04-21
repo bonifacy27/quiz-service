@@ -152,6 +152,15 @@ router.post("/admin/uploads/question-media", requireAdmin, uploadQuestionMedia.s
   });
 });
 
+router.post("/admin/uploads/question-media", requireAdmin, uploadQuestionMedia.single("media"), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "Файл не загружен" });
+  const ext = String(path.extname(req.file.originalname || "").toLowerCase());
+  const mediaType = ext === ".mp3" ? "audio" : (ext === ".mp4" ? "video" : "");
+  if (!mediaType) return res.status(400).json({ error: "Разрешены только .mp3 и .mp4 файлы" });
+  const filename = path.basename(req.file.filename);
+  return res.json({ ok: true, url: `/uploads/${filename}`, mediaType });
+});
+
 function parseRoundSettings(body = {}) {
   const answerTime = String(body.answerTime || "30");
   const mode = String(body.mode || "normal");

@@ -181,6 +181,12 @@ textarea {
   background: #020617;
 }
 
+.question-audio {
+  display: block;
+  width: min(100%, 720px);
+  margin: 0 auto 14px;
+}
+
 .game-screen-box {
   min-width: 320px;
 }
@@ -484,6 +490,15 @@ details > summary {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.media-preview-wrap {
+  margin: 8px 0;
+}
+
+.media-preview-player {
+  display: block;
+  width: min(100%, 520px);
 }
 
 @media (max-width: 720px) {

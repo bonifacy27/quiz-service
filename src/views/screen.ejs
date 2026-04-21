@@ -75,7 +75,16 @@
       startTimer(question.timerEndsAt);
     });
 
-    socket.on('question:answer', ({ text }) => {
+    socket.on('question:answer', ({ text, type, payload }) => {
+      if (type === 'abcd' && payload && Number.isInteger(Number(payload.correct))) {
+        const correctIndex = Number(payload.correct);
+        const optionNodes = contentEl.querySelectorAll('[data-option-index]');
+        optionNodes.forEach((node) => {
+          if (Number(node.dataset.optionIndex) === correctIndex) {
+            node.classList.add('correct-answer');
+          }
+        });
+      }
       answerBox.innerText = text || 'Верный ответ показан';
       answerBox.style.display = 'block';
     });
@@ -83,6 +92,11 @@
     socket.on('question:closed', () => {
       setStatus('closed');
       stopTimer();
+    });
+
+    socket.on('question:timer', ({ timerEndsAt }) => {
+      startTimer(timerEndsAt || null);
+      if (timerEndsAt) setStatus('active');
     });
 
     socket.on('round:finished', ({ rows }) => {
@@ -154,6 +168,7 @@
         ul.className = 'options-list';
         question.payload.options.forEach((option) => {
           const li = document.createElement('li');
+          li.dataset.optionIndex = String(ul.children.length);
           li.innerText = option;
           ul.appendChild(li);
         });

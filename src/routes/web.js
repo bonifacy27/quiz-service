@@ -728,6 +728,10 @@ router.get("/admin/games/:id/control", requireAdmin, async (req, res) => {
   if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
 
   let rounds = await all("SELECT * FROM rounds WHERE game_id = ? ORDER BY sort_order ASC, id ASC", [game.id]);
+  const questions = await all(
+    "SELECT * FROM questions WHERE game_id = ? ORDER BY round_id ASC, sort_order ASC, id ASC",
+    [game.id]
+  );
   const sessions = await all(
     "SELECT * FROM game_sessions WHERE game_id = ? ORDER BY session_number DESC, id DESC",
     [game.id]
@@ -762,6 +766,27 @@ router.get("/admin/games/:id/control", requireAdmin, async (req, res) => {
   }));
   const joinUrl = `${getPublicBaseUrl(req)}/join/${game.code}`;
   const qrDataUrl = await QRCode.toDataURL(joinUrl);
+  const questionsByRound = rounds.reduce((acc, round) => {
+    acc[round.id] = questions
+      .filter((question) => question.round_id === round.id)
+      .map((question) => {
+        let payload = {};
+        try {
+          payload = JSON.parse(question.payload_json || "{}");
+        } catch (_) {
+          payload = {};
+        }
+        return {
+          id: question.id,
+          roundId: question.round_id,
+          sortOrder: question.sort_order,
+          type: question.type,
+          title: question.title,
+          payload,
+        };
+      });
+    return acc;
+  }, {});
 
   res.render("admin-game-control", {
     game,
@@ -770,6 +795,7 @@ router.get("/admin/games/:id/control", requireAdmin, async (req, res) => {
     currentSessionId,
     players,
     roundScoreTable,
+    questionsByRound,
     joinUrl,
     qrDataUrl,
     user: req.session.user,

@@ -3,27 +3,28 @@
 <section class="card">
   <h1><%= game.title %> • управление игрой</h1>
   <div class="row wrap">
-    <a class="button button-outline" href="/admin/games/<%= game.id %>/build">Создание игры</a>
-    <a class="button" href="/admin/games/<%= game.id %>/control">Управление игрой</a>
+    <a class="button button-outline" href="/admin/games/<%= game.id %>/build">Редактировать игру</a>
   </div>
 </section>
 
 <section class="card">
   <h2>1. Начало игры</h2>
+  <% const isSessionStarted = Boolean(currentSessionId); %>
   <p>
-    <a class="button" href="/game/<%= game.code %>" target="_blank" rel="noopener noreferrer">Открыть экран игры</a>
+    <% if (isSessionStarted) { %>
+      <a class="button" href="/game/<%= game.code %>" target="_blank" rel="noopener noreferrer">Открыть экран игры</a>
+    <% } else { %>
+      <span class="muted">Экран станет доступен после запуска новой игры.</span>
+    <% } %>
   </p>
   <label>Ссылка для подключения</label>
   <div class="row wrap">
-    <input type="text" id="join-link" value="<%= joinUrl %>" readonly />
-    <button class="button" type="button" id="copy-link">Скопировать</button>
+    <input type="text" id="join-link" value="<%= isSessionStarted ? joinUrl : '' %>" readonly placeholder="Появится после запуска новой игры" />
+    <button class="icon-button" type="button" id="copy-link" title="Скопировать ссылку" <%= isSessionStarted ? '' : 'disabled' %>>📋</button>
   </div>
   <details>
     <summary>Запуски и история</summary>
     <div class="row wrap">
-      <% if (currentSessionId) { %>
-        <button class="button" id="continue-current">Продолжить текущий запуск</button>
-      <% } %>
       <button class="button" id="start-new">Запустить новую игру</button>
       <button class="button button-danger" id="finish-game">Завершить игру</button>
     </div>
@@ -186,16 +187,18 @@
           }).join('') + '</ul>'
         : '<p class="muted">Тип: ' + question.type + '</p>';
 
+      const connectedPlayersCount = livePlayers.filter((player) => Number(player.connected) === 1).length;
       const isActive = question.id === activeQuestionId;
       const isPlayed = playedQuestionIds.has(question.id);
       const controlsClass = isActive ? '' : 'hidden';
       const answersClass = (isActive || isPlayed) ? '' : 'hidden';
+      const showQuestionDisabled = connectedPlayersCount ? '' : 'disabled';
 
       return '<article class="question-tile" id="question-tile-' + question.id + '" data-question-id="' + question.id + '" data-round-id="' + roundId + '">'
         + '<h4>' + (index + 1) + '. ' + question.title + '</h4>'
         + optionsHtml
         + '<div class="question-controls">'
-        + '  <button class="button show-question">Показать вопрос</button>'
+        + '  <button class="button show-question" ' + showQuestionDisabled + '>Показать вопрос</button>'
         + '</div>'
         + '<div class="question-live-controls ' + controlsClass + '">'
         + '  <div class="row wrap">'
@@ -310,6 +313,7 @@
   socket.on('player:list', ({ players }) => {
     livePlayers = players.slice();
     renderPlayersScoreTable();
+    renderQuestionRibbon();
   });
 
   socket.on('player:round-scores', ({ rows }) => {

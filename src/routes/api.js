@@ -397,7 +397,10 @@ router.post("/admin/games/:id/timer/start", requireAdmin, async (req, res) => {
 
   liveGame.currentQuestionStatus = "active";
   liveGame.timerEndsAt = Date.now() + Math.floor(seconds) * 1000;
-  req.app.get("io").to(`game:${game.code}`).emit("question:timer", { timerEndsAt: liveGame.timerEndsAt });
+  req.app.get("io").to(`game:${game.code}`).emit("question:timer", {
+    timerEndsAt: liveGame.timerEndsAt,
+    durationMs: Math.floor(seconds) * 1000,
+  });
   emitHostTimerState(req.app.get("io"), game.code, liveGame, "timer_started");
   scheduleQuestionClose(req.app.get("io"), game.code);
   res.json({ ok: true, timerEndsAt: liveGame.timerEndsAt });
@@ -426,7 +429,17 @@ router.post("/admin/games/:id/screen", requireAdmin, async (req, res) => {
   const allowed = ["showQr", "showLeaderboard", "showPlayers", "showWinners", "showRoundScores"];
   if (!allowed.includes(key)) return res.status(400).json({ error: "Unsupported key" });
 
-  liveGame.screen[key] = !liveGame.screen[key];
+  if (key === "showQr" || key === "showLeaderboard") {
+    const nextValue = !liveGame.screen[key];
+    liveGame.screen.showQr = false;
+    liveGame.screen.showLeaderboard = false;
+    liveGame.screen.showPlayers = false;
+    liveGame.screen.showWinners = false;
+    liveGame.screen.showRoundScores = false;
+    liveGame.screen[key] = nextValue;
+  } else {
+    liveGame.screen[key] = !liveGame.screen[key];
+  }
   emitScreenState(req.app.get("io"), game.code, liveGame);
 
   if (key === "showLeaderboard" || key === "showWinners") {

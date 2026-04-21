@@ -736,7 +736,7 @@ router.get("/admin/games/:id/control", requireAdmin, async (req, res) => {
     "SELECT * FROM game_sessions WHERE game_id = ? ORDER BY session_number DESC, id DESC",
     [game.id]
   );
-  const currentSessionId = game.current_session_id || (sessions[0] ? sessions[0].id : null);
+  const currentSessionId = game.current_session_id || null;
   const players = currentSessionId
     ? await all(
       "SELECT id, name, score, connected FROM players WHERE game_id = ? AND session_id = ? ORDER BY score DESC, id ASC",

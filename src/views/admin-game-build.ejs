@@ -480,6 +480,43 @@
     renderMediaPreview();
   }
 
+  function wireMediaUpload(form) {
+    const fileInput = form.querySelector('.media-file-input');
+    const mediaUrlInput = form.querySelector('.media-url-input');
+    const mediaTypeInput = form.querySelector('.media-type-input');
+    const statusEl = form.querySelector('.media-status');
+    if (!fileInput || !mediaUrlInput || !mediaTypeInput || !statusEl) return;
+
+    form.querySelectorAll('.media-upload-btn').forEach((button) => {
+      button.addEventListener('click', () => {
+        fileInput.dataset.expectedType = button.dataset.mediaKind || '';
+        fileInput.click();
+      });
+    });
+
+    fileInput.addEventListener('change', async () => {
+      const expectedType = fileInput.dataset.expectedType || '';
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+      const name = String(file.name || '').toLowerCase();
+      if (expectedType === 'audio' && !name.endsWith('.mp3')) {
+        statusEl.textContent = 'Для аудио выберите mp3';
+        return;
+      }
+      if (expectedType === 'video' && !name.endsWith('.mp4')) {
+        statusEl.textContent = 'Для видео выберите mp4';
+        return;
+      }
+      try {
+        await uploadQuestionMedia(fileInput, mediaUrlInput, mediaTypeInput, statusEl);
+      } catch (error) {
+        statusEl.textContent = error.message || 'Ошибка загрузки';
+      } finally {
+        fileInput.value = '';
+      }
+    });
+  }
+
   function resetQuestionDraftForm(form) {
     form.reset();
     const imageUrlInput = form.querySelector('.image-url-input');

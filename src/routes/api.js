@@ -32,6 +32,22 @@ function emitQuestionState(io, gameCode, question, liveGame) {
   io.to(`game:${gameCode}`).emit("question:show", buildQuestionPublicData(question, liveGame));
 }
 
+function hydrateQuestionRow(row) {
+  let payload = {};
+  try {
+    payload = JSON.parse(row.payload_json || "{}");
+  } catch (_) {
+    payload = {};
+  }
+  return {
+    id: row.id,
+    roundId: row.round_id,
+    type: row.type,
+    title: row.title,
+    payload,
+  };
+}
+
 function closeCurrentQuestion(io, gameCode, reason = "manual") {
   const liveGame = ensureGame(gameCode);
   if (!liveGame.currentQuestion || liveGame.currentQuestionStatus === "closed") return false;
@@ -143,6 +159,50 @@ async function startQuestion(io, game, roundId) {
   scheduleQuestionClose(io, game.code);
 
   return { ok: true, questionId: question.id, roundId: liveGame.activeRoundId };
+}
+
+async function showQuestionById(io, game, roundId, questionId) {
+  const liveGame = ensureGame(game.code);
+  if (!liveGame.currentSessionId) return { error: "Запуск не активирован" };
+
+  const questions = await all(
+    `SELECT q.*
+     FROM questions q
+     WHERE q.game_id = ? AND q.round_id = ?
+     ORDER BY q.sort_order ASC, q.id ASC`,
+    [game.id, Number(roundId)]
+  );
+  const targetIndex = questions.findIndex((question) => question.id === Number(questionId));
+  if (targetIndex < 0) return { error: "Вопрос не найден в выбранном раунде" };
+
+  closeCurrentQuestion(io, game.code, "show_question");
+  resetQuestionState(game.code);
+
+  const question = hydrateQuestionRow(questions[targetIndex]);
+  liveGame.activeRoundId = Number(roundId);
+  liveGame.roundQuestionIndex = targetIndex;
+  liveGame.currentQuestion = question;
+  liveGame.currentQuestionStatus = "active";
+  liveGame.timerEndsAt = question.payload.timeLimitSec ? Date.now() + Number(question.payload.timeLimitSec) * 1000 : null;
+
+  emitQuestionState(io, game.code, question, liveGame);
+  io.to(`host:${game.code}`).emit("question:status", {
+    questionId: question.id,
+    status: liveGame.currentQuestionStatus,
+    reason: "shown_by_host",
+    timerEndsAt: liveGame.timerEndsAt,
+  });
+  scheduleQuestionClose(io, game.code);
+  return { ok: true, questionId: question.id, roundId: liveGame.activeRoundId };
+}
+
+function emitHostTimerState(io, gameCode, liveGame, reason) {
+  io.to(`host:${gameCode}`).emit("question:status", {
+    questionId: liveGame.currentQuestion ? liveGame.currentQuestion.id : null,
+    status: liveGame.currentQuestionStatus,
+    reason,
+    timerEndsAt: liveGame.timerEndsAt,
+  });
 }
 
 router.post("/admin/games", requireAdmin, async (req, res) => {
@@ -307,7 +367,56 @@ router.post("/admin/games/:id/reveal-answer", requireAdmin, async (req, res) => 
     payload: liveGame.currentQuestion.payload,
     text: getCorrectAnswerText(liveGame.currentQuestion),
   });
+  closeCurrentQuestion(req.app.get("io"), game.code, "reveal_answer");
 
+  res.json({ ok: true });
+});
+
+router.post("/admin/games/:id/show-question", requireAdmin, async (req, res) => {
+  await ensureExtendedGameSchema();
+  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).json({ error: "Game not found" });
+
+  const roundId = Number(req.body.roundId || 0);
+  const questionId = Number(req.body.questionId || 0);
+  if (!roundId || !questionId) return res.status(400).json({ error: "roundId и questionId обязательны" });
+
+  const result = await showQuestionById(req.app.get("io"), game, roundId, questionId);
+  if (result.error) return res.status(400).json({ error: result.error });
+  res.json(result);
+});
+
+router.post("/admin/games/:id/timer/start", requireAdmin, async (req, res) => {
+  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).json({ error: "Game not found" });
+
+  const liveGame = ensureGame(game.code);
+  if (!liveGame.currentQuestion) return res.status(400).json({ error: "Нет активного вопроса" });
+  const seconds = Number(req.body.seconds || liveGame.currentQuestion.payload.timeLimitSec || 15);
+  if (!Number.isFinite(seconds) || seconds <= 0) return res.status(400).json({ error: "Некорректная длительность таймера" });
+
+  liveGame.currentQuestionStatus = "active";
+  liveGame.timerEndsAt = Date.now() + Math.floor(seconds) * 1000;
+  req.app.get("io").to(`game:${game.code}`).emit("question:timer", {
+    timerEndsAt: liveGame.timerEndsAt,
+    durationMs: Math.floor(seconds) * 1000,
+  });
+  emitHostTimerState(req.app.get("io"), game.code, liveGame, "timer_started");
+  scheduleQuestionClose(req.app.get("io"), game.code);
+  res.json({ ok: true, timerEndsAt: liveGame.timerEndsAt });
+});
+
+router.post("/admin/games/:id/timer/stop", requireAdmin, async (req, res) => {
+  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).json({ error: "Game not found" });
+
+  const liveGame = ensureGame(game.code);
+  if (!liveGame.currentQuestion) return res.status(400).json({ error: "Нет активного вопроса" });
+
+  clearQuestionTimer(game.code);
+  liveGame.timerEndsAt = null;
+  req.app.get("io").to(`game:${game.code}`).emit("question:timer", { timerEndsAt: null });
+  emitHostTimerState(req.app.get("io"), game.code, liveGame, "timer_stopped");
   res.json({ ok: true });
 });
 
@@ -320,7 +429,17 @@ router.post("/admin/games/:id/screen", requireAdmin, async (req, res) => {
   const allowed = ["showQr", "showLeaderboard", "showPlayers", "showWinners", "showRoundScores"];
   if (!allowed.includes(key)) return res.status(400).json({ error: "Unsupported key" });
 
-  liveGame.screen[key] = !liveGame.screen[key];
+  if (key === "showQr" || key === "showLeaderboard") {
+    const nextValue = !liveGame.screen[key];
+    liveGame.screen.showQr = false;
+    liveGame.screen.showLeaderboard = false;
+    liveGame.screen.showPlayers = false;
+    liveGame.screen.showWinners = false;
+    liveGame.screen.showRoundScores = false;
+    liveGame.screen[key] = nextValue;
+  } else {
+    liveGame.screen[key] = !liveGame.screen[key];
+  }
   emitScreenState(req.app.get("io"), game.code, liveGame);
 
   if (key === "showLeaderboard" || key === "showWinners") {

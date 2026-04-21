@@ -15,28 +15,6 @@
       <div id="answer-result" class="notice" style="display:none"></div>
       <div id="player-content"></div>
     </section>
-
-    <section class="card fullscreen-card">
-      <h2>Таблица очков</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Место</th>
-            <th>Игрок</th>
-            <th>Очки</th>
-          </tr>
-        </thead>
-        <tbody id="leaderboard-body">
-          <% leaderboard.forEach((row, index) => { %>
-            <tr>
-              <td><%= index + 1 %></td>
-              <td><%= row.name %></td>
-              <td><%= row.score %></td>
-            </tr>
-          <% }) %>
-        </tbody>
-      </table>
-    </section>
   </main>
 
   <script src="/socket.io/socket.io.js"></script>
@@ -49,10 +27,10 @@
     const answerResultBox = document.getElementById('answer-result');
     const questionStatusBox = document.getElementById('question-status');
     const questionTitle = document.getElementById('question-title');
-    const leaderboardBody = document.getElementById('leaderboard-body');
     let timerInterval = null;
     let answeredQuestionIds = new Set();
     let currentQuestion = null;
+    let selectedOptionIndex = null;
 
     function enableFullscreen() {
       if (document.fullscreenElement || !document.documentElement.requestFullscreen) return;
@@ -69,6 +47,7 @@
 
     socket.on('question:show', (question) => {
       currentQuestion = question;
+      selectedOptionIndex = null;
       renderQuestion(question);
     });
 
@@ -80,6 +59,17 @@
       setQuestionStatus('closed', reason);
     });
 
+    socket.on('question:answer', ({ type, payload }) => {
+      if (type === 'abcd' && payload && Number.isInteger(Number(payload.correct))) {
+        const correctIndex = Number(payload.correct);
+        root.querySelectorAll('[data-option-index]').forEach((node) => {
+          if (Number(node.dataset.optionIndex) === correctIndex) {
+            node.classList.add('option-plate-correct');
+          }
+        });
+      }
+    });
+
     socket.on('buzz:winner', ({ playerId }) => {
       const div = document.createElement('div');
       div.className = 'notice';
@@ -88,29 +78,29 @@
       lockInputs();
     });
 
-    socket.on('answer:result', ({ questionId, isCorrect, scoreDelta }) => {
+    socket.on('answer:result', ({ questionId, scoreDelta }) => {
       answeredQuestionIds.add(questionId);
       answerResultBox.style.display = 'block';
-      answerResultBox.innerText = isCorrect
-        ? 'Ответ принят: верно! +' + scoreDelta + ' очков. Повторный ответ невозможен.'
-        : 'Ответ принят: неверно. +' + scoreDelta + ' очков. Повторный ответ невозможен.';
+      answerResultBox.innerText = 'Ответ принят.';
+      if (scoreDelta > 0) {
+        const bonus = document.createElement('span');
+        bonus.className = 'score-bonus-pop';
+        bonus.innerText = ' +' + scoreDelta;
+        answerResultBox.appendChild(bonus);
+        setTimeout(() => bonus.remove(), 1000);
+      }
       lockInputs();
     });
 
     socket.on('answer:rejected', ({ reason, message }) => {
+      if (reason === 'already_answered') return;
       answerResultBox.style.display = 'block';
-      if (reason === 'already_answered') {
-        answerResultBox.innerText = 'Повторный ответ невозможен.';
-      } else if (reason === 'question_closed') {
+      if (reason === 'question_closed') {
         answerResultBox.innerText = 'Вопрос завершен. Ответы больше не принимаются.';
         setQuestionStatus('closed');
       } else {
         answerResultBox.innerText = message || 'Ответ не принят';
       }
-    });
-
-    socket.on('leaderboard:update', ({ leaderboard }) => {
-      renderLeaderboard(leaderboard);
     });
 
     function setQuestionStatus(status, reason) {
@@ -155,7 +145,7 @@
 
         if (msLeft <= 0) {
           stopTimer();
-          timerBox.innerText = 'Время вышло';
+          timerBox.innerText = 'Осталось времени: 0 сек.';
         }
       }
 
@@ -177,6 +167,14 @@
       root.appendChild(image);
     }
 
+    function markSelectedOption(index) {
+      root.querySelectorAll('[data-option-index]').forEach((node) => {
+        if (Number(node.dataset.optionIndex) === index) {
+          node.classList.add('option-selected');
+        }
+      });
+    }
+
     function renderQuestion(question) {
       root.innerHTML = '';
       answerResultBox.style.display = 'none';
@@ -189,13 +187,19 @@
       const submitAllowed = canSubmit(question);
 
       if (question.type === 'abcd') {
+        const optionsGrid = document.createElement('div');
+        optionsGrid.className = 'options-grid';
+
         question.payload.options.forEach((option, index) => {
           const btn = document.createElement('button');
-          btn.className = 'button option';
-          btn.innerText = option;
+          btn.className = 'button option option-plate';
+          btn.dataset.optionIndex = String(index);
+          btn.innerText = String.fromCharCode(65 + index) + '. ' + option;
           btn.disabled = !submitAllowed;
           btn.onclick = () => {
             if (!canSubmit(question)) return;
+            selectedOptionIndex = index;
+            markSelectedOption(index);
             socket.emit('answer:submit', {
               gameCode: game.code,
               playerId: player.id,
@@ -203,8 +207,10 @@
             });
             lockInputs();
           };
-          root.appendChild(btn);
+          optionsGrid.appendChild(btn);
         });
+
+        root.appendChild(optionsGrid);
       } else if (question.type === 'text') {
         const input = document.createElement('input');
         input.type = 'text';
@@ -265,17 +271,12 @@
         answerResultBox.style.display = 'block';
         answerResultBox.innerText = question.status === 'closed'
           ? 'Вопрос завершен. Ответы больше не принимаются.'
-          : 'Ответ уже отправлен. Повторный ответ невозможен.';
+          : 'Ответ принят.';
       }
-    }
 
-    function renderLeaderboard(leaderboard) {
-      leaderboardBody.innerHTML = '';
-      leaderboard.forEach((row) => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = '<td>' + row.place + '</td><td>' + row.name + '</td><td>' + row.score + '</td>';
-        leaderboardBody.appendChild(tr);
-      });
+      if (selectedOptionIndex !== null) {
+        markSelectedOption(selectedOptionIndex);
+      }
     }
   </script>
 </body>

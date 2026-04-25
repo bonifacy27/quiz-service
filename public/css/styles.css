@@ -255,28 +255,29 @@ textarea {
   margin-left: 8px;
   font-weight: 700;
   color: #16a34a;
-  animation: scorePop 1s ease forwards;
+  font-size: 48px;
+  animation: scorePop 1.8s ease forwards;
 }
 
 @keyframes scorePop {
   from { transform: translateY(0); opacity: 1; }
-  to { transform: translateY(-8px); opacity: 0; }
+  to { transform: translateY(-16px); opacity: 0; }
 }
 
-.question-video-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 3000;
-  background: #000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.question-media-slot {
+  margin-bottom: 12px;
 }
 
-.question-video-overlay-player {
-  width: 100vw;
-  height: 100vh;
-  object-fit: contain;
+.round-only {
+  text-align: center;
+}
+
+.answer-result-highlight {
+  text-align: center;
+  font-size: 36px;
+  font-weight: 700;
+  background: #dcfce7;
+  color: #166534;
 }
 
 .options-list {

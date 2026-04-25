@@ -10,10 +10,10 @@
   <main class="fullscreen-stage">
     <section class="card fullscreen-card" id="question-block">
       <h1 id="screen-title"><%= game.title %></h1>
-      <div class="screen-meta">
+      <div class="screen-meta" id="screen-meta">
         <span><strong>Таймер:</strong> <span id="screen-timer">—</span></span>
       </div>
-      <div class="timer-strip"><div id="timer-strip-fill" class="timer-strip-fill"></div></div>
+      <div class="timer-strip" id="screen-timer-strip"><div id="timer-strip-fill" class="timer-strip-fill"></div></div>
       <div id="screen-content"></div>
       <div id="answer-box" class="notice" style="display:none"></div>
     </section>
@@ -23,6 +23,8 @@
       <img src="<%= qrDataUrl %>" alt="QR code" class="qr" />
       <p>Код: <code><%= game.code %></code></p>
       <p><a href="<%= qrUrl %>"><%= qrUrl %></a></p>
+      <h3>Подключенные игроки</h3>
+      <ul id="qr-players-list"></ul>
     </section>
 
     <section class="card fullscreen-card" id="players-block" style="display:none"><h2>Игроки</h2><ul id="players-list"></ul></section>
@@ -41,11 +43,14 @@
     const titleEl = document.getElementById('screen-title');
     const contentEl = document.getElementById('screen-content');
     const timerEl = document.getElementById('screen-timer');
+    const screenMeta = document.getElementById('screen-meta');
+    const screenTimerStrip = document.getElementById('screen-timer-strip');
     const timerStripFill = document.getElementById('timer-strip-fill');
     const answerBox = document.getElementById('answer-box');
     const leaderboardBody = document.getElementById('leaderboard-body');
     const winnersList = document.getElementById('winners-list');
     const playersList = document.getElementById('players-list');
+    const qrPlayersList = document.getElementById('qr-players-list');
     const questionBlock = document.getElementById('question-block');
     const qrBlock = document.getElementById('qr-block');
     const leaderboardBlock = document.getElementById('leaderboard-block');
@@ -57,7 +62,7 @@
     let latestLeaderboard = [];
     let activeTimerDurationMs = 0;
     let activeMediaElement = null;
-    let activeQuestionVideoOverlay = null;
+    let pendingTimerAfterVideo = false;
 
     function enableFullscreen() {
       if (document.fullscreenElement || !document.documentElement.requestFullscreen) return;
@@ -94,18 +99,24 @@
       answerBox.style.display = 'none';
       titleEl.innerText = '';
       stopMediaPlayback();
-       hideQuestionVideoOverlay();
+      showTimerControls();
       renderQuestion(question);
       playQuestionMediaIfNeeded(question);
+      const questionVideoUrl = getQuestionVideoUrl(question.payload);
+      pendingTimerAfterVideo = Boolean(questionVideoUrl && !question.timerEndsAt);
       activeTimerDurationMs = Number(question.payload && question.payload.timeLimitSec ? question.payload.timeLimitSec * 1000 : 0);
-      startTimer(question.timerEndsAt, activeTimerDurationMs);
+      if (pendingTimerAfterVideo) {
+        stopTimer();
+      } else {
+        startTimer(question.timerEndsAt, activeTimerDurationMs);
+      }
     });
 
     socket.on('question:media:start', ({ questionId, mediaType, mediaUrl, role }) => {
       if (!mediaUrl || (mediaType !== 'audio' && mediaType !== 'video')) return;
       const currentQuestionId = Number(contentEl.dataset.questionId || 0);
       if (currentQuestionId !== Number(questionId || 0)) return;
-      startMediaPlayback(mediaType, mediaUrl, role || 'question');
+      startMediaPlayback(mediaType, mediaUrl, role || 'question', questionId);
     });
 
     socket.on('question:answer', ({ text, type, payload }) => {
@@ -129,16 +140,21 @@
     socket.on('question:closed', () => {
       stopTimer();
       stopMediaPlayback();
-      hideQuestionVideoOverlay();
+      pendingTimerAfterVideo = false;
     });
 
-    socket.on('round:show', ({ name, description }) => {
+    socket.on('round:show', ({ roundNumber, name, description }) => {
       stopTimer();
       stopMediaPlayback();
-      hideQuestionVideoOverlay();
+      hideTimerControls();
       answerBox.style.display = 'none';
-      titleEl.innerText = 'Раунд';
-      contentEl.innerHTML = '<div class="notice"><h2>Раунд</h2><h3>' + (name || '') + '</h3><p>' + (description || '') + '</p></div>';
+      const roundLabel = roundNumber ? 'Раунд ' + roundNumber : 'Раунд';
+      titleEl.innerText = '';
+      contentEl.innerHTML = '<div class="notice round-only">'
+        + '<h2>' + roundLabel + '</h2>'
+        + '<h3>' + (name || '') + '</h3>'
+        + '<p>' + (description || '') + '</p>'
+        + '</div>';
     });
 
     socket.on('question:timer', ({ timerEndsAt, durationMs }) => {
@@ -155,9 +171,15 @@
       contentEl.innerHTML = '<div class="notice">Ведущий завершил игру. Можно запускать новую сессию.</div>';
       stopTimer();
       stopMediaPlayback();
+      showTimerControls();
     });
 
     socket.on('player:list', ({ players }) => {
+      const connectedPlayers = players.filter((p) => Number(p.connected) === 1);
+      const connectedHtml = connectedPlayers.length
+        ? connectedPlayers.map((p) => '<li>' + p.name + '</li>').join('')
+        : '<li>Пока никто не подключился</li>';
+      qrPlayersList.innerHTML = connectedHtml;
       playersList.innerHTML = players.map((p) => '<li>' + p.name + ' — ' + (p.connected ? 'online' : 'offline') + '</li>').join('');
     });
 
@@ -188,6 +210,16 @@
       }
       timerEl.innerText = '—';
       timerStripFill.style.width = '0%';
+    }
+
+    function hideTimerControls() {
+      screenMeta.style.display = 'none';
+      screenTimerStrip.style.display = 'none';
+    }
+
+    function showTimerControls() {
+      screenMeta.style.display = 'flex';
+      screenTimerStrip.style.display = 'block';
     }
 
     function startTimer(timerEndsAt, durationMs) {
@@ -232,6 +264,10 @@
       title.innerText = question.title;
       contentEl.appendChild(title);
 
+      const mediaSlot = document.createElement('div');
+      mediaSlot.className = 'question-media-slot';
+      contentEl.appendChild(mediaSlot);
+
       if (question.type === 'abcd' && question.payload && Array.isArray(question.payload.options)) {
         const optionsGrid = document.createElement('div');
         optionsGrid.className = 'options-grid';
@@ -262,7 +298,7 @@
       }
     }
 
-    function startMediaPlayback(mediaType, mediaUrl, role) {
+    function startMediaPlayback(mediaType, mediaUrl, role, questionId) {
       stopMediaPlayback();
       if (mediaType === 'audio') {
         const audio = document.createElement('audio');
@@ -277,7 +313,27 @@
       }
 
       if (role !== 'answer') {
-        playQuestionVideoFullscreen(mediaUrl);
+        const video = document.createElement('video');
+        video.src = mediaUrl;
+        video.autoplay = true;
+        video.controls = true;
+        video.className = 'question-media';
+        video.onended = () => {
+          if (pendingTimerAfterVideo && questionId) {
+            pendingTimerAfterVideo = false;
+            socket.emit('question:media:ended', {
+              gameCode: game.code,
+              questionId,
+              mediaType: 'video',
+              role: 'question',
+            });
+          }
+        };
+        activeMediaElement = video;
+        const mediaSlot = contentEl.querySelector('.question-media-slot');
+        if (mediaSlot) mediaSlot.appendChild(video);
+        else contentEl.prepend(video);
+        video.play().catch(() => {});
         return;
       }
 
@@ -293,28 +349,6 @@
       video.play().catch(() => {});
     }
 
-    function hideQuestionVideoOverlay() {
-      if (!activeQuestionVideoOverlay) return;
-      activeQuestionVideoOverlay.remove();
-      activeQuestionVideoOverlay = null;
-    }
-
-    function playQuestionVideoFullscreen(mediaUrl) {
-      hideQuestionVideoOverlay();
-      const overlay = document.createElement('div');
-      overlay.className = 'question-video-overlay';
-      const video = document.createElement('video');
-      video.src = mediaUrl;
-      video.autoplay = true;
-      video.controls = false;
-      video.className = 'question-video-overlay-player';
-      overlay.appendChild(video);
-      document.body.appendChild(overlay);
-      activeQuestionVideoOverlay = overlay;
-      video.play().catch(() => {});
-      video.onended = () => hideQuestionVideoOverlay();
-    }
-
     function playQuestionMediaIfNeeded(question) {
       const payload = question && question.payload ? question.payload : {};
       const questionVideoUrl = String(payload.videoQuestionUrl || '').trim();
@@ -322,16 +356,25 @@
       const legacyMediaUrl = String(payload.mediaUrl || '').trim();
       const legacyMediaType = payload.mediaType === 'audio' || payload.mediaType === 'video' ? payload.mediaType : '';
       if (questionVideoUrl) {
-        startMediaPlayback('video', questionVideoUrl, 'question');
+        startMediaPlayback('video', questionVideoUrl, 'question', question.id);
         return;
       }
       if (questionAudioUrl) {
-        startMediaPlayback('audio', questionAudioUrl, 'question');
+        startMediaPlayback('audio', questionAudioUrl, 'question', question.id);
         return;
       }
       if (legacyMediaUrl && legacyMediaType) {
-        startMediaPlayback(legacyMediaType, legacyMediaUrl, 'question');
+        startMediaPlayback(legacyMediaType, legacyMediaUrl, 'question', question.id);
       }
+    }
+
+    function getQuestionVideoUrl(payload) {
+      if (!payload) return '';
+      const videoQuestionUrl = String(payload.videoQuestionUrl || '').trim();
+      if (videoQuestionUrl) return videoQuestionUrl;
+      const legacyMediaType = payload.mediaType === 'video' ? 'video' : '';
+      const legacyMediaUrl = String(payload.mediaUrl || '').trim();
+      return legacyMediaType && legacyMediaUrl ? legacyMediaUrl : '';
     }
   </script>
 </body>

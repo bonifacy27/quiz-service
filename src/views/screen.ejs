@@ -57,6 +57,7 @@
     let latestLeaderboard = [];
     let activeTimerDurationMs = 0;
     let activeMediaElement = null;
+    let activeQuestionVideoOverlay = null;
 
     function enableFullscreen() {
       if (document.fullscreenElement || !document.documentElement.requestFullscreen) return;
@@ -93,16 +94,18 @@
       answerBox.style.display = 'none';
       titleEl.innerText = '';
       stopMediaPlayback();
+       hideQuestionVideoOverlay();
       renderQuestion(question);
+      playQuestionMediaIfNeeded(question);
       activeTimerDurationMs = Number(question.payload && question.payload.timeLimitSec ? question.payload.timeLimitSec * 1000 : 0);
       startTimer(question.timerEndsAt, activeTimerDurationMs);
     });
 
-    socket.on('question:media:start', ({ questionId, mediaType, mediaUrl }) => {
+    socket.on('question:media:start', ({ questionId, mediaType, mediaUrl, role }) => {
       if (!mediaUrl || (mediaType !== 'audio' && mediaType !== 'video')) return;
       const currentQuestionId = Number(contentEl.dataset.questionId || 0);
       if (currentQuestionId !== Number(questionId || 0)) return;
-      startMediaPlayback(mediaType, mediaUrl);
+      startMediaPlayback(mediaType, mediaUrl, role || 'question');
     });
 
     socket.on('question:answer', ({ text, type, payload }) => {
@@ -126,6 +129,16 @@
     socket.on('question:closed', () => {
       stopTimer();
       stopMediaPlayback();
+      hideQuestionVideoOverlay();
+    });
+
+    socket.on('round:show', ({ name, description }) => {
+      stopTimer();
+      stopMediaPlayback();
+      hideQuestionVideoOverlay();
+      answerBox.style.display = 'none';
+      titleEl.innerText = 'Раунд';
+      contentEl.innerHTML = '<div class="notice"><h2>Раунд</h2><h3>' + (name || '') + '</h3><p>' + (description || '') + '</p></div>';
     });
 
     socket.on('question:timer', ({ timerEndsAt, durationMs }) => {
@@ -249,22 +262,25 @@
       }
     }
 
-    function startMediaPlayback(mediaType, mediaUrl) {
+    function startMediaPlayback(mediaType, mediaUrl, role) {
       stopMediaPlayback();
       if (mediaType === 'audio') {
         const audio = document.createElement('audio');
         audio.src = mediaUrl;
         audio.autoplay = true;
-        audio.controls = true;
-        audio.className = 'question-audio';
+        audio.controls = false;
+        audio.className = role === 'answer' ? 'answer-audio' : 'question-audio';
         activeMediaElement = audio;
-        contentEl.appendChild(audio);
+        document.body.appendChild(audio);
         audio.play().catch(() => {});
         return;
       }
 
-      const image = contentEl.querySelector('.question-media');
-      if (image) image.remove();
+      if (role !== 'answer') {
+        playQuestionVideoFullscreen(mediaUrl);
+        return;
+      }
+
       const video = document.createElement('video');
       video.src = mediaUrl;
       video.autoplay = true;
@@ -275,6 +291,47 @@
       if (titleNode) titleNode.after(video);
       else contentEl.prepend(video);
       video.play().catch(() => {});
+    }
+
+    function hideQuestionVideoOverlay() {
+      if (!activeQuestionVideoOverlay) return;
+      activeQuestionVideoOverlay.remove();
+      activeQuestionVideoOverlay = null;
+    }
+
+    function playQuestionVideoFullscreen(mediaUrl) {
+      hideQuestionVideoOverlay();
+      const overlay = document.createElement('div');
+      overlay.className = 'question-video-overlay';
+      const video = document.createElement('video');
+      video.src = mediaUrl;
+      video.autoplay = true;
+      video.controls = false;
+      video.className = 'question-video-overlay-player';
+      overlay.appendChild(video);
+      document.body.appendChild(overlay);
+      activeQuestionVideoOverlay = overlay;
+      video.play().catch(() => {});
+      video.onended = () => hideQuestionVideoOverlay();
+    }
+
+    function playQuestionMediaIfNeeded(question) {
+      const payload = question && question.payload ? question.payload : {};
+      const questionVideoUrl = String(payload.videoQuestionUrl || '').trim();
+      const questionAudioUrl = String(payload.audioQuestionUrl || '').trim();
+      const legacyMediaUrl = String(payload.mediaUrl || '').trim();
+      const legacyMediaType = payload.mediaType === 'audio' || payload.mediaType === 'video' ? payload.mediaType : '';
+      if (questionVideoUrl) {
+        startMediaPlayback('video', questionVideoUrl, 'question');
+        return;
+      }
+      if (questionAudioUrl) {
+        startMediaPlayback('audio', questionAudioUrl, 'question');
+        return;
+      }
+      if (legacyMediaUrl && legacyMediaType) {
+        startMediaPlayback(legacyMediaType, legacyMediaUrl, 'question');
+      }
     }
   </script>
 </body>

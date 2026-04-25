@@ -90,17 +90,24 @@
       answeredQuestionIds.add(questionId);
       if (pendingReveal) return;
       answerResultBox.innerHTML = '';
+      answerResultBox.classList.remove('answer-result-highlight');
       if (reveal && scoreDelta > 0) {
         answerResultBox.style.display = 'block';
+        answerResultBox.classList.add('answer-result-highlight');
         const bonus = document.createElement('span');
         bonus.className = 'score-bonus-pop';
         bonus.innerText = '+' + scoreDelta;
         answerResultBox.appendChild(bonus);
+        const label = document.createElement('strong');
+        label.innerText = ' Правильный ответ!';
+        answerResultBox.appendChild(label);
         setTimeout(() => {
           bonus.remove();
+          answerResultBox.classList.remove('answer-result-highlight');
           answerResultBox.style.display = 'none';
-        }, 2000);
+        }, 4500);
       } else {
+        answerResultBox.classList.remove('answer-result-highlight');
         answerResultBox.style.display = 'none';
       }
       lockInputs();

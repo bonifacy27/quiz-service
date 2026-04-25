@@ -32,6 +32,24 @@ function emitQuestionState(io, gameCode, question, liveGame) {
   io.to(`game:${gameCode}`).emit("question:show", buildQuestionPublicData(question, liveGame));
 }
 
+function parseRoundSettingsJson(settingsJson) {
+  try {
+    const parsed = JSON.parse(settingsJson || "{}");
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function emitRoundAnnouncement(io, gameCode, round) {
+  const settings = parseRoundSettingsJson(round.settings_json);
+  io.to(`game:${gameCode}`).emit("round:show", {
+    roundId: round.id,
+    name: round.name,
+    description: String(settings.description || "").trim(),
+  });
+}
+
 function hydrateQuestionRow(row) {
   let payload = {};
   try {
@@ -177,6 +195,7 @@ async function showQuestionById(io, game, roundId, questionId) {
 
   closeCurrentQuestion(io, game.code, "show_question");
   resetQuestionState(game.code);
+  liveGame.activeRoundAnnouncement = null;
 
   const question = hydrateQuestionRow(questions[targetIndex]);
   liveGame.activeRoundId = Number(roundId);
@@ -194,6 +213,22 @@ async function showQuestionById(io, game, roundId, questionId) {
   });
   scheduleQuestionClose(io, game.code);
   return { ok: true, questionId: question.id, roundId: liveGame.activeRoundId };
+}
+
+function emitAnswerResultsForCurrentQuestion(io, gameCode, liveGame) {
+  if (!liveGame.currentQuestion) return;
+  const questionId = Number(liveGame.currentQuestion.id || 0);
+  Array.from(liveGame.answers.entries()).forEach(([key, value]) => {
+    if (!value || value.pending) return;
+    const [keyQuestionId, playerId] = String(key).split(":").map(Number);
+    if (keyQuestionId !== questionId || !playerId) return;
+    io.to(`player:${playerId}`).emit("answer:result", {
+      questionId,
+      isCorrect: Boolean(value.isCorrect),
+      scoreDelta: Number(value.scoreDelta || 0),
+      reveal: true,
+    });
+  });
 }
 
 function emitHostTimerState(io, gameCode, liveGame, reason) {
@@ -367,6 +402,27 @@ router.post("/admin/games/:id/reveal-answer", requireAdmin, async (req, res) => 
     payload: liveGame.currentQuestion.payload,
     text: getCorrectAnswerText(liveGame.currentQuestion),
   });
+  emitAnswerResultsForCurrentQuestion(req.app.get("io"), game.code, liveGame);
+
+  const payload = liveGame.currentQuestion.payload || {};
+  const answerAudioUrl = String(payload.audioAnswerUrl || "").trim();
+  const answerVideoUrl = String(payload.videoAnswerUrl || "").trim();
+  if (answerAudioUrl) {
+    req.app.get("io").to(`game:${game.code}`).emit("question:media:start", {
+      questionId: liveGame.currentQuestion.id,
+      mediaType: "audio",
+      mediaUrl: answerAudioUrl,
+      role: "answer",
+    });
+  }
+  if (answerVideoUrl) {
+    req.app.get("io").to(`game:${game.code}`).emit("question:media:start", {
+      questionId: liveGame.currentQuestion.id,
+      mediaType: "video",
+      mediaUrl: answerVideoUrl,
+      role: "answer",
+    });
+  }
   closeCurrentQuestion(req.app.get("io"), game.code, "reveal_answer");
 
   res.json({ ok: true });
@@ -393,16 +449,68 @@ router.post("/admin/games/:id/media/start", requireAdmin, async (req, res) => {
   const liveGame = ensureGame(game.code);
   if (!liveGame.currentQuestion) return res.status(400).json({ error: "Нет активного вопроса" });
   const payload = liveGame.currentQuestion.payload || {};
-  const mediaType = payload.mediaType === "audio" || payload.mediaType === "video" ? payload.mediaType : "";
-  const mediaUrl = String(payload.mediaUrl || "").trim();
+  const questionAudioUrl = String(payload.audioQuestionUrl || "").trim();
+  const questionVideoUrl = String(payload.videoQuestionUrl || "").trim();
+  const legacyMediaType = payload.mediaType === "audio" || payload.mediaType === "video" ? payload.mediaType : "";
+  const legacyMediaUrl = String(payload.mediaUrl || "").trim();
+  const mediaType = questionVideoUrl
+    ? "video"
+    : (questionAudioUrl ? "audio" : legacyMediaType);
+  const mediaUrl = questionVideoUrl || questionAudioUrl || legacyMediaUrl;
   if (!mediaType || !mediaUrl) return res.status(400).json({ error: "У вопроса нет медиафайла" });
 
   req.app.get("io").to(`game:${game.code}`).emit("question:media:start", {
     questionId: liveGame.currentQuestion.id,
     mediaType,
     mediaUrl,
+    role: "question",
   });
   res.json({ ok: true, mediaType });
+});
+
+router.post("/admin/games/:id/show-round", requireAdmin, async (req, res) => {
+  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).json({ error: "Game not found" });
+
+  const roundId = Number(req.body.roundId || 0);
+  const round = await get("SELECT * FROM rounds WHERE id = ? AND game_id = ?", [roundId, game.id]);
+  if (!round) return res.status(400).json({ error: "Раунд не найден" });
+
+  const liveGame = ensureGame(game.code);
+  closeCurrentQuestion(req.app.get("io"), game.code, "show_round");
+  liveGame.activeRoundId = round.id;
+  liveGame.roundQuestionIndex = -1;
+  liveGame.activeRoundAnnouncement = round.id;
+  liveGame.screen.showQr = false;
+  liveGame.screen.showLeaderboard = false;
+  liveGame.screen.showPlayers = false;
+  liveGame.screen.showWinners = false;
+  liveGame.screen.showRoundScores = false;
+
+  emitScreenState(req.app.get("io"), game.code, liveGame);
+  emitRoundAnnouncement(req.app.get("io"), game.code, round);
+  res.json({ ok: true, roundId: round.id });
+});
+
+router.post("/admin/games/:id/finish-round", requireAdmin, async (req, res) => {
+  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).json({ error: "Game not found" });
+
+  const liveGame = ensureGame(game.code);
+  if (!liveGame.currentSessionId || !liveGame.activeRoundId) {
+    return res.status(400).json({ error: "Нет активного раунда" });
+  }
+
+  closeCurrentQuestion(req.app.get("io"), game.code, "finish_round");
+  await emitRoundScoreSummary(req.app.get("io"), game, liveGame.currentSessionId, liveGame.activeRoundId);
+  liveGame.screen.showQr = false;
+  liveGame.screen.showLeaderboard = true;
+  liveGame.screen.showPlayers = false;
+  liveGame.screen.showWinners = false;
+  liveGame.screen.showRoundScores = false;
+  emitScreenState(req.app.get("io"), game.code, liveGame);
+  await emitSessionLeaderboard(req.app.get("io"), game, liveGame.currentSessionId);
+  res.json({ ok: true });
 });
 
 router.post("/admin/games/:id/timer/start", requireAdmin, async (req, res) => {

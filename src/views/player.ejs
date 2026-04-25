@@ -31,6 +31,7 @@
     let currentQuestion = null;
     let selectedOptionIndex = null;
     let activeTimerDurationMs = 0;
+    let isTimerExpired = false;
 
     function enableFullscreen() {
       if (document.fullscreenElement || !document.documentElement.requestFullscreen) return;
@@ -48,6 +49,7 @@
     socket.on('question:show', (question) => {
       currentQuestion = question;
       selectedOptionIndex = null;
+      isTimerExpired = false;
       activeTimerDurationMs = Number(question.payload && question.payload.timeLimitSec ? question.payload.timeLimitSec * 1000 : 0);
       renderQuestion(question);
     });
@@ -76,17 +78,6 @@
       }
     });
 
-    socket.on('question:answer', ({ type, payload }) => {
-      if (type === 'abcd' && payload && Number.isInteger(Number(payload.correct))) {
-        const correctIndex = Number(payload.correct);
-        root.querySelectorAll('[data-option-index]').forEach((node) => {
-          if (Number(node.dataset.optionIndex) === correctIndex) {
-            node.classList.add('option-plate-correct');
-          }
-        });
-      }
-    });
-
     socket.on('buzz:winner', ({ playerId }) => {
       const div = document.createElement('div');
       div.className = 'notice';
@@ -95,10 +86,11 @@
       lockInputs();
     });
 
-    socket.on('answer:result', ({ questionId, scoreDelta }) => {
+    socket.on('answer:result', ({ questionId, scoreDelta, reveal, pendingReveal }) => {
       answeredQuestionIds.add(questionId);
+      if (pendingReveal) return;
       answerResultBox.innerHTML = '';
-      if (scoreDelta > 0) {
+      if (reveal && scoreDelta > 0) {
         answerResultBox.style.display = 'block';
         const bonus = document.createElement('span');
         bonus.className = 'score-bonus-pop';
@@ -107,7 +99,7 @@
         setTimeout(() => {
           bonus.remove();
           answerResultBox.style.display = 'none';
-        }, 1000);
+        }, 2000);
       } else {
         answerResultBox.style.display = 'none';
       }
@@ -134,6 +126,13 @@
       timerFill.style.width = '0%';
     }
 
+    function markInputsExpired() {
+      root.querySelectorAll('.option-plate').forEach((button) => {
+        button.classList.add('option-timeout');
+      });
+      lockInputs();
+    }
+
     function startTimer(timerEndsAt, durationMs) {
       stopTimer();
       if (!timerEndsAt) return;
@@ -145,6 +144,10 @@
           timerFill.style.width = percent + '%';
         }
         if (msLeft <= 0) stopTimer();
+        if (msLeft <= 0 && !isTimerExpired) {
+          isTimerExpired = true;
+          markInputsExpired();
+        }
       }
 
       tick();
@@ -195,6 +198,7 @@
           btn.disabled = !submitAllowed;
           btn.onclick = () => {
             if (!canSubmit(question)) return;
+            isTimerExpired = false;
             selectedOptionIndex = index;
             markSelectedOption(index);
             socket.emit('answer:submit', {

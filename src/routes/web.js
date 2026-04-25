@@ -63,12 +63,23 @@ function buildQuestionPayload(type, body) {
       return { error: "Для типа abcd выберите правильный ответ" };
     }
 
+    const audioQuestionUrl = String(body.audioQuestionUrl || "").trim();
+    const audioAnswerUrl = String(body.audioAnswerUrl || "").trim();
+    const videoQuestionUrl = String(body.videoQuestionUrl || "").trim();
+    const videoAnswerUrl = String(body.videoAnswerUrl || "").trim();
+    const fallbackAudioQuestionUrl = mediaType === "audio" ? mediaUrl : "";
+    const fallbackVideoQuestionUrl = mediaType === "video" ? mediaUrl : "";
+
     return {
       payload: {
         options,
         correct,
         timeLimitSec: timeLimitSec > 0 ? timeLimitSec : 15,
         imageUrl,
+        audioQuestionUrl: audioQuestionUrl || fallbackAudioQuestionUrl,
+        audioAnswerUrl,
+        videoQuestionUrl: videoQuestionUrl || fallbackVideoQuestionUrl,
+        videoAnswerUrl,
         mediaUrl,
         mediaType,
         hostComment,
@@ -775,7 +786,11 @@ router.get("/admin/games/:id/control", requireAdmin, async (req, res) => {
   const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
   if (!game) return res.status(404).render("error", { message: "Игра не найдена" });
 
-  let rounds = await all("SELECT * FROM rounds WHERE game_id = ? ORDER BY sort_order ASC, id ASC", [game.id]);
+  const roundsRaw = await all("SELECT * FROM rounds WHERE game_id = ? ORDER BY sort_order ASC, id ASC", [game.id]);
+  const rounds = roundsRaw.map((round) => ({
+    ...round,
+    settings: normalizeRoundSettings(round.settings_json),
+  }));
   const questions = await all(
     "SELECT * FROM questions WHERE game_id = ? ORDER BY round_id ASC, sort_order ASC, id ASC",
     [game.id]

@@ -188,7 +188,8 @@ function registerGameSocket(io) {
       io.to(`player:${playerId}`).emit("answer:result", {
         questionId: liveGame.currentQuestion.id,
         isCorrect: result.isCorrect,
-        scoreDelta: result.scoreDelta,
+        scoreDelta: 0,
+        pendingReveal: true,
       });
       await emitLeaderboard(io, gameCode, game.id);
     });
@@ -242,7 +243,8 @@ function registerGameSocket(io) {
       io.to(`player:${playerId}`).emit("answer:result", {
         questionId: liveGame.currentQuestion.id,
         isCorrect: true,
-        scoreDelta: 100,
+        scoreDelta: 0,
+        pendingReveal: true,
       });
       await emitLeaderboard(io, gameCode, game.id);
     });

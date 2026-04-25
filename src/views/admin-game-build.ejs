@@ -115,6 +115,14 @@
                       <input type="hidden" name="imageUrl" value="<%= question.payload.imageUrl || '' %>" class="image-url-input" />
                       <input type="hidden" name="mediaUrl" value="<%= question.payload.mediaUrl || '' %>" class="media-url-input" />
                       <input type="hidden" name="mediaType" value="<%= question.payload.mediaType || '' %>" class="media-type-input" />
+                      <label>Аудио вопроса (URL)</label>
+                      <input type="text" name="audioQuestionUrl" value="<%= question.payload.audioQuestionUrl || '' %>" placeholder="/uploads/file.mp3" />
+                      <label>Аудио ответа (URL)</label>
+                      <input type="text" name="audioAnswerUrl" value="<%= question.payload.audioAnswerUrl || '' %>" placeholder="/uploads/file.mp3" />
+                      <label>Видео вопроса (URL)</label>
+                      <input type="text" name="videoQuestionUrl" value="<%= question.payload.videoQuestionUrl || '' %>" placeholder="/uploads/file.mp4" />
+                      <label>Видео ответа (URL)</label>
+                      <input type="text" name="videoAnswerUrl" value="<%= question.payload.videoAnswerUrl || '' %>" placeholder="/uploads/file.mp4" />
                       <div class="upload-row">
                         <button class="button button-outline image-upload-btn" type="button">Картинка вопроса</button>
                         <button class="button button-outline image-remove-btn" type="button">Удалить картинку</button>
@@ -202,6 +210,14 @@
                   </a>
                 </div>
                 <div class="media-preview-wrap" style="display:none"></div>
+                <label>Аудио вопроса (URL)</label>
+                <input type="text" name="audioQuestionUrl" placeholder="/uploads/file.mp3" />
+                <label>Аудио ответа (URL)</label>
+                <input type="text" name="audioAnswerUrl" placeholder="/uploads/file.mp3" />
+                <label>Видео вопроса (URL)</label>
+                <input type="text" name="videoQuestionUrl" placeholder="/uploads/file.mp4" />
+                <label>Видео ответа (URL)</label>
+                <input type="text" name="videoAnswerUrl" placeholder="/uploads/file.mp4" />
                 <div class="options-editor" data-options-editor>
                   <div class="options-list-box" data-options-list></div>
                   <button class="button button-outline add-option-btn" type="button">+ Добавить вариант</button>
@@ -532,6 +548,10 @@
     const mediaUrl = question.payload && question.payload.mediaUrl ? question.payload.mediaUrl : '';
     const mediaType = question.payload && question.payload.mediaType ? question.payload.mediaType : '';
     const mediaStatus = mediaUrl ? (mediaType === 'video' ? 'Видео загружено' : 'Аудио загружено') : '';
+    const audioQuestionUrl = question.payload && question.payload.audioQuestionUrl ? question.payload.audioQuestionUrl : '';
+    const audioAnswerUrl = question.payload && question.payload.audioAnswerUrl ? question.payload.audioAnswerUrl : '';
+    const videoQuestionUrl = question.payload && question.payload.videoQuestionUrl ? question.payload.videoQuestionUrl : '';
+    const videoAnswerUrl = question.payload && question.payload.videoAnswerUrl ? question.payload.videoAnswerUrl : '';
     const headerHtml =
       '<div class="build-question-header compact">' +
         '<span><strong>Вопрос</strong> ' + escapeHtml(question.title) + ' <span class="muted">(' + question.points + ')</span></span>' +
@@ -554,6 +574,10 @@
           '<input type="hidden" name="imageUrl" value="' + escapeHtml(imageUrl) + '" class="image-url-input" />' +
           '<input type="hidden" name="mediaUrl" value="' + escapeHtml(mediaUrl) + '" class="media-url-input" />' +
           '<input type="hidden" name="mediaType" value="' + escapeHtml(mediaType) + '" class="media-type-input" />' +
+          '<label>Аудио вопроса (URL)</label><input type="text" name="audioQuestionUrl" value="' + escapeHtml(audioQuestionUrl) + '" placeholder="/uploads/file.mp3" />' +
+          '<label>Аудио ответа (URL)</label><input type="text" name="audioAnswerUrl" value="' + escapeHtml(audioAnswerUrl) + '" placeholder="/uploads/file.mp3" />' +
+          '<label>Видео вопроса (URL)</label><input type="text" name="videoQuestionUrl" value="' + escapeHtml(videoQuestionUrl) + '" placeholder="/uploads/file.mp4" />' +
+          '<label>Видео ответа (URL)</label><input type="text" name="videoAnswerUrl" value="' + escapeHtml(videoAnswerUrl) + '" placeholder="/uploads/file.mp4" />' +
           '<div class="upload-row"><button class="button button-outline image-upload-btn" type="button">Картинка вопроса</button><button class="button button-outline image-remove-btn" type="button">Удалить картинку</button><input type="file" accept="image/*" class="image-file-input" style="display:none" /><span class="muted image-status">' + (imageUrl ? 'Изображение загружено' : '') + '</span></div>' +
           '<div class="upload-row"><button class="button button-outline media-upload-btn" type="button" data-media-kind="audio">Аудиофайл</button><button class="button button-outline media-upload-btn" type="button" data-media-kind="video">Видеофайл</button><button class="button button-outline media-remove-btn" type="button">Удалить медиа</button><input type="file" accept=".mp3,audio/mpeg,.mp4,video/mp4" class="media-file-input" style="display:none" /><span class="muted media-status">' + mediaStatus + '</span></div>' +
           '<div class="image-preview-wrap" style="display:' + (imageUrl ? 'block' : 'none') + '"><a href="' + (imageUrl || '#') + '" target="_blank" rel="noopener noreferrer" class="image-preview-link"><img src="' + (imageUrl || '') + '" alt="preview" class="image-preview-thumb" /></a></div>' +

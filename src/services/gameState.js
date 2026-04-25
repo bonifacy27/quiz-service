@@ -4,7 +4,7 @@ const state = {
 
 function defaultScreenState() {
   return {
-    showQr: false,
+    showQr: true,
     showLeaderboard: false,
     showPlayers: false,
     showWinners: false,
@@ -28,6 +28,7 @@ function ensureGame(code) {
       timerEndsAt: null,
       timerTimeout: null,
       screen: defaultScreenState(),
+      activeRoundAnnouncement: null,
     });
   }
   return state.byGameCode.get(code);
@@ -57,6 +58,7 @@ function resetSessionState(code, { keepPlayers = false } = {}) {
   game.roundQuestionIndex = -1;
   game.currentQuestion = null;
   game.screen = defaultScreenState();
+  game.activeRoundAnnouncement = null;
   if (!keepPlayers) {
     game.players = new Map();
   }

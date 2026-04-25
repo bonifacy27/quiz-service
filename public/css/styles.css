@@ -182,9 +182,11 @@ textarea {
 }
 
 .question-audio {
-  display: block;
-  width: min(100%, 720px);
-  margin: 0 auto 14px;
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .game-screen-box {
@@ -243,6 +245,11 @@ textarea {
   background: #7c3aed !important;
 }
 
+.option-timeout {
+  opacity: 0.45;
+  filter: grayscale(0.4);
+}
+
 .score-bonus-pop {
   display: inline-block;
   margin-left: 8px;
@@ -254,6 +261,22 @@ textarea {
 @keyframes scorePop {
   from { transform: translateY(0); opacity: 1; }
   to { transform: translateY(-8px); opacity: 0; }
+}
+
+.question-video-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.question-video-overlay-player {
+  width: 100vw;
+  height: 100vh;
+  object-fit: contain;
 }
 
 .options-list {

@@ -34,7 +34,7 @@
 <section class="card">
   <h2>2. Управление экраном игры</h2>
   <div class="row wrap">
-    <button class="button button-outline screen-toggle" data-key="showQr">Показать/скрыть QR-код</button>
+    <button class="button button-outline" id="toggle-qr">Показать/скрыть QR-код</button>
     <button class="button button-outline screen-toggle" data-key="showLeaderboard">Показать/скрыть таблицу очков</button>
   </div>
 </section>
@@ -130,6 +130,7 @@
   let liveRoundScores = new Map();
   let answersByQuestion = new Map();
   let playedQuestionIds = new Set();
+  let selectedRoundId = rounds.length ? Number(rounds[0].id) : null;
 
   roundScoreTable.forEach((row) => {
     row.byRound.forEach((roundData) => {
@@ -226,6 +227,10 @@
         + '</article>';
     }).join('');
 
+    if (questions.length) {
+      questionRibbon.innerHTML += '<div class="row wrap"><button class="button button-outline finish-round">Завершить раунд</button></div>';
+    }
+
     attachQuestionHandlers();
   }
 
@@ -236,6 +241,9 @@
       const question = (questionsByRound[roundId] || []).find((q) => q.id === questionId);
 
       tile.querySelector('.show-question').onclick = async () => {
+        if (activeQuestionId === null && selectedRoundId === roundId) {
+          await post('/api/admin/games/<%= game.id %>/show-round', { roundId });
+        }
         const data = await post('/api/admin/games/<%= game.id %>/show-question', { roundId, questionId });
         if (data.error) {
           alert(data.error);
@@ -268,17 +276,34 @@
         await post('/api/admin/games/<%= game.id %>/close-question');
       };
     });
+    const finishRoundButton = questionRibbon.querySelector('.finish-round');
+    if (finishRoundButton) {
+      finishRoundButton.onclick = async () => {
+        const data = await post('/api/admin/games/<%= game.id %>/finish-round');
+        if (data.error) alert(data.error);
+      };
+    }
   }
 
   function renderRoundSelect() {
     if (!roundSelect) return;
     roundSelect.innerHTML = rounds.map((round) => '<option value="' + round.id + '">' + round.name + ' (' + round.question_type + ')</option>').join('');
     roundSelect.onchange = () => {
+      selectedRoundId = Number(roundSelect.value);
       activeQuestionId = null;
+      post('/api/admin/games/<%= game.id %>/show-round', { roundId: selectedRoundId });
       renderQuestionRibbon();
     };
+    selectedRoundId = Number(roundSelect.value);
     renderQuestionRibbon();
   }
+
+  document.getElementById('toggle-qr').onclick = async () => {
+    const data = await post('/api/admin/games/<%= game.id %>/screen', { key: 'showQr' });
+    if (data && data.screen && data.screen.showQr === false && selectedRoundId) {
+      await post('/api/admin/games/<%= game.id %>/show-round', { roundId: selectedRoundId });
+    }
+  };
 
   function renderPlayersScoreTable() {
     if (!playersScoreBody) return;

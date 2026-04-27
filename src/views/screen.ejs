@@ -126,6 +126,8 @@
         optionNodes.forEach((node) => {
           if (Number(node.dataset.optionIndex) === correctIndex) {
             node.classList.add('option-plate-correct');
+            node.classList.add('option-plate-correct-animate');
+            setTimeout(() => node.classList.remove('option-plate-correct-animate'), 900);
           }
         });
       }
@@ -137,9 +139,11 @@
       }
     });
 
-    socket.on('question:closed', () => {
+    socket.on('question:closed', ({ reason }) => {
       stopTimer();
-      stopMediaPlayback();
+      if (reason !== 'reveal_answer') {
+        stopMediaPlayback();
+      }
       pendingTimerAfterVideo = false;
     });
 

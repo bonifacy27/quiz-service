@@ -73,6 +73,8 @@
         root.querySelectorAll('[data-option-index]').forEach((node) => {
           if (Number(node.dataset.optionIndex) === correctIndex) {
             node.classList.add('option-plate-correct');
+            node.classList.add('option-plate-correct-animate');
+            setTimeout(() => node.classList.remove('option-plate-correct-animate'), 900);
           }
         });
       }

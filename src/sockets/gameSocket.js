@@ -63,6 +63,7 @@ async function emitPlayerStatus(io, gameCode) {
     [game.id, game.current_session_id]
   );
   io.to(`host:${gameCode}`).emit("player:list", { players });
+  io.to(`game:${gameCode}`).emit("player:list", { players });
   io.to(`host:${gameCode}`).emit("player:round-scores", { rows: roundScores });
 }
 
@@ -85,6 +86,42 @@ function registerGameSocket(io) {
       socket.emit("screen:state", ensureGame(gameCode).screen);
       emitCurrentQuestion(socket, gameCode);
       socket.emit("screen:joined", { ok: true });
+    });
+
+    socket.on("question:media:ended", async ({ gameCode, questionId, role, mediaType }) => {
+      if (role !== "question" || mediaType !== "video") return;
+      const liveGame = ensureGame(gameCode);
+      if (!liveGame.currentQuestion || liveGame.currentQuestionStatus !== "active") return;
+      if (Number(liveGame.currentQuestion.id) !== Number(questionId)) return;
+      if (liveGame.timerEndsAt) return;
+      const seconds = Number(liveGame.currentQuestion.payload && liveGame.currentQuestion.payload.timeLimitSec || 0);
+      if (!Number.isFinite(seconds) || seconds <= 0) return;
+
+      liveGame.timerEndsAt = Date.now() + Math.floor(seconds) * 1000;
+      io.to(`game:${gameCode}`).emit("question:timer", {
+        timerEndsAt: liveGame.timerEndsAt,
+        durationMs: Math.floor(seconds) * 1000,
+      });
+      io.to(`host:${gameCode}`).emit("question:status", {
+        questionId: liveGame.currentQuestion.id,
+        status: liveGame.currentQuestionStatus,
+        reason: "timer_started_after_video",
+        timerEndsAt: liveGame.timerEndsAt,
+      });
+
+      if (liveGame.timerTimeout) clearTimeout(liveGame.timerTimeout);
+      liveGame.timerTimeout = setTimeout(() => {
+        if (!liveGame.currentQuestion || liveGame.currentQuestionStatus !== "active") return;
+        liveGame.currentQuestionStatus = "closed";
+        liveGame.timerEndsAt = null;
+        liveGame.timerTimeout = null;
+        io.to(`game:${gameCode}`).emit("question:closed", { questionId: liveGame.currentQuestion.id, reason: "timer" });
+        io.to(`host:${gameCode}`).emit("question:status", {
+          questionId: liveGame.currentQuestion.id,
+          status: "closed",
+          reason: "timer",
+        });
+      }, Math.floor(seconds) * 1000);
     });
 
     socket.on("player:join", async ({ gameCode, playerId, sessionToken }) => {
@@ -111,9 +148,6 @@ function registerGameSocket(io) {
 
       await run("UPDATE players SET connected = 1 WHERE id = ?", [player.id]);
 
-      io.to(`game:${gameCode}`).emit("player:list", {
-        players: Array.from(liveGame.players.values()),
-      });
       await emitPlayerStatus(io, gameCode);
       await emitLeaderboard(io, gameCode, player.game_id);
 

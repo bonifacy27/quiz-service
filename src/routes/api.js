@@ -45,9 +45,19 @@ function emitRoundAnnouncement(io, gameCode, round) {
   const settings = parseRoundSettingsJson(round.settings_json);
   io.to(`game:${gameCode}`).emit("round:show", {
     roundId: round.id,
+    roundNumber: Number(round.sort_order || 0) || null,
     name: round.name,
     description: String(settings.description || "").trim(),
   });
+}
+
+function hasQuestionVideo(payload) {
+  if (!payload || typeof payload !== "object") return false;
+  const questionVideoUrl = String(payload.videoQuestionUrl || "").trim();
+  if (questionVideoUrl) return true;
+  const legacyMediaType = payload.mediaType === "video" ? "video" : "";
+  const legacyMediaUrl = String(payload.mediaUrl || "").trim();
+  return Boolean(legacyMediaType && legacyMediaUrl);
 }
 
 function hydrateQuestionRow(row) {
@@ -166,7 +176,9 @@ async function startQuestion(io, game, roundId) {
     payload,
   };
   liveGame.currentQuestionStatus = "active";
-  liveGame.timerEndsAt = payload.timeLimitSec ? Date.now() + Number(payload.timeLimitSec) * 1000 : null;
+  liveGame.timerEndsAt = hasQuestionVideo(payload)
+    ? null
+    : (payload.timeLimitSec ? Date.now() + Number(payload.timeLimitSec) * 1000 : null);
 
   emitQuestionState(io, game.code, question, liveGame);
   io.to(`host:${game.code}`).emit("question:status", {
@@ -202,7 +214,9 @@ async function showQuestionById(io, game, roundId, questionId) {
   liveGame.roundQuestionIndex = targetIndex;
   liveGame.currentQuestion = question;
   liveGame.currentQuestionStatus = "active";
-  liveGame.timerEndsAt = question.payload.timeLimitSec ? Date.now() + Number(question.payload.timeLimitSec) * 1000 : null;
+  liveGame.timerEndsAt = hasQuestionVideo(question.payload)
+    ? null
+    : (question.payload.timeLimitSec ? Date.now() + Number(question.payload.timeLimitSec) * 1000 : null);
 
   emitQuestionState(io, game.code, question, liveGame);
   io.to(`host:${game.code}`).emit("question:status", {

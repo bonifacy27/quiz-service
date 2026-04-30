@@ -85,8 +85,8 @@
         <tr>
           <th>Игрок</th>
           <th>Статус</th>
-          <% rounds.forEach((round) => { %>
-            <th><%= round.name %></th>
+          <% rounds.forEach((round, index) => { %>
+            <th>Раунд <%= index + 1 %></th>
           <% }) %>
           <th>Итого</th>
         </tr>

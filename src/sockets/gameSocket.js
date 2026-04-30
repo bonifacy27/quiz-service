@@ -290,6 +290,7 @@ function registerGameSocket(io) {
         pendingReveal: true,
       });
       await emitLeaderboard(io, gameCode, game.id);
+      await emitPlayerStatus(io, gameCode);
     });
 
     socket.on("buzz:press", async ({ gameCode, playerId }) => {
@@ -345,6 +346,7 @@ function registerGameSocket(io) {
         pendingReveal: true,
       });
       await emitLeaderboard(io, gameCode, game.id);
+      await emitPlayerStatus(io, gameCode);
     });
 
     socket.on("disconnect", async () => {

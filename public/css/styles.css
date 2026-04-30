@@ -198,33 +198,43 @@ textarea {
   min-height: 66vh;
 }
 
+
 .screen-meta {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
   display: flex;
+  align-items: center;
   justify-content: center;
-  margin: 8px 0;
+  z-index: 1000;
+  background: conic-gradient(#22c55e 0deg, #1e293b 0deg);
+  box-shadow: 0 4px 14px rgba(2, 6, 23, 0.45);
 }
 
 .screen-timer-value {
-  font-size: 18px;
+  position: relative;
+  z-index: 2;
+  font-size: 13px;
   font-weight: 700;
-  color: #0f172a;
+  color: #fff;
+  background: rgba(15, 23, 42, 0.9);
+  border-radius: 50%;
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .timer-strip {
-  width: min(100%, 980px);
-  height: 10px;
-  border-radius: 999px;
-  background: #1e293b;
-  overflow: hidden;
-  margin: 0 auto 14px;
+  display: none;
 }
 
 .timer-strip-fill {
-  width: 100%;
-  height: 0;
-  border-radius: inherit;
-  background: linear-gradient(90deg, #22c55e, #f59e0b, #ef4444);
-  transition: height 0.1s linear;
+  display: none;
 }
 
 .screen-question-title {
@@ -656,4 +666,26 @@ details > summary {
 
 .session-history {
   margin-top: 14px;
+}
+
+
+.round-banner {
+  background: #0f2a5c;
+  color: #fff;
+  border-radius: 12px;
+  padding: 28px 20px;
+  text-align: center;
+}
+
+#leaderboard-block,
+#leaderboard-block .scoreboard-table,
+#leaderboard-block .scoreboard-table th,
+#leaderboard-block .scoreboard-table td {
+  background: #0f2a5c;
+  color: #fff;
+}
+
+#leaderboard-block .scoreboard-table th,
+#leaderboard-block .scoreboard-table td {
+  border-color: rgba(255, 255, 255, 0.25);
 }

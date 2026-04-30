@@ -29,7 +29,7 @@
       <button class="button button-danger" id="finish-game">Завершить игру</button>
     </div>
     <div class="session-history">
-      <% const activeSession = sessions.find((session) => session.id === currentSessionId && session.status === 'live'); %>
+      <% const activeSession = sessions.find((session) => session.id === currentSessionId); %>
       <h3>Текущая сессия</h3>
       <% if (activeSession) { %>
         <p>
@@ -41,18 +41,19 @@
       <% } %>
 
       <h3>История завершенных игр</h3>
-      <% const finishedSessions = sessions.filter((session) => session.status === 'finished'); %>
+      <% const finishedSessions = sessions.filter((session) => session.id !== currentSessionId); %>
       <% if (finishedSessions.length) { %>
         <ul>
           <% finishedSessions.forEach((session) => { %>
             <li>
               Сессия #<%= session.session_number %> — старт <%= new Date(session.started_at).toLocaleString('ru-RU') %>,
               игроков участвовало: <strong><%= Number(session.players_total || 0) %></strong>
+              <button class="button button-danger delete-session" data-session-id="<%= session.id %>">Удалить</button>
             </li>
           <% }) %>
         </ul>
       <% } else { %>
-        <p class="muted">Завершенных сессий пока нет.</p>
+        <p class="muted">Старых сессий пока нет.</p>
       <% } %>
     </div>
   </details>
@@ -71,8 +72,6 @@
   <% if (!rounds.length) { %>
     <p class="notice">Добавьте раунды и вопросы в разделе «Создание игры».</p>
   <% } else { %>
-    <label for="round-select">Раунд</label>
-    <select id="round-select"></select>
     <div id="question-ribbon" class="question-ribbon"></div>
   <% } %>
 </section>
@@ -148,7 +147,6 @@
     };
   });
 
-  const roundSelect = document.getElementById('round-select');
   const questionRibbon = document.getElementById('question-ribbon');
   const playersScoreBody = document.getElementById('players-score-body');
 
@@ -157,7 +155,6 @@
   let liveRoundScores = new Map();
   let answersByQuestion = new Map();
   let playedQuestionIds = new Set();
-  let selectedRoundId = rounds.length ? Number(rounds[0].id) : null;
 
   roundScoreTable.forEach((row) => {
     row.byRound.forEach((roundData) => {
@@ -198,16 +195,12 @@
   }
 
   function renderQuestionRibbon() {
-    if (!roundSelect || !questionRibbon) return;
+    if (!questionRibbon) return;
 
-    const roundId = Number(roundSelect.value);
-    const questions = questionsByRound[roundId] || [];
-    if (!questions.length) {
-      questionRibbon.innerHTML = '<p class="notice">В этом раунде нет вопросов.</p>';
-      return;
-    }
-
-    questionRibbon.innerHTML = questions.map((question, index) => {
+    questionRibbon.innerHTML = rounds.map((round, roundIndex) => {
+      const roundId = Number(round.id);
+      const questions = questionsByRound[roundId] || [];
+      const questionsHtml = questions.length ? questions.map((question, index) => {
       const optionsHtml = question.type === 'abcd' && question.payload && Array.isArray(question.payload.options)
         ? '<ul class="options-list compact">' + question.payload.options.map((option, optionIndex) => {
             const correctClass = Number(question.payload.correct) === optionIndex ? 'correct-answer' : '';
@@ -230,7 +223,7 @@
       const hasMedia = Boolean(hasQuestionVideo || hasQuestionAudio);
       const mediaIcon = hasMedia ? (hasQuestionVideo ? ' 🎬' : ' 🔊') : '';
 
-      return '<article class="question-tile" id="question-tile-' + question.id + '" data-question-id="' + question.id + '" data-round-id="' + roundId + '">'
+      return '<article class=\"question-tile\" id=\"question-tile-' + question.id + '\" data-question-id=\"' + question.id + '\" data-round-id=\"' + roundId + '\">'
         + '<h4>' + (index + 1) + '. ' + question.title + mediaIcon + '</h4>'
         + optionsHtml
         + '<div class="question-controls">'
@@ -255,11 +248,16 @@
         + '  </div>'
         + '</div>'
         + '</article>';
-    }).join('');
+    }).join('') : '<p class="notice">В этом раунде нет вопросов.</p>';
 
-    if (questions.length) {
-      questionRibbon.innerHTML += '<div class="row wrap"><button class="button button-outline finish-round">Завершить раунд</button></div>';
-    }
+      return '<section class="card">'
+        + '<h3>Раунд ' + (roundIndex + 1) + ': ' + round.name + '</h3>'
+        + '<div class="row wrap"><button class="button start-round" data-round-id="' + roundId + '">Начать раунд ' + (roundIndex + 1) + '</button></div>'
+        + questionsHtml
+        + '<div class="row wrap"><button class="button button-outline finish-round" data-round-id="' + roundId + '">Завершить раунд ' + (roundIndex + 1) + '</button></div>'
+        + '</section>';
+    }).join('')
+      + '<div class="row wrap"><button class="button button-danger" id="finish-all-rounds">Завершить раунды</button></div>';
 
     attachQuestionHandlers();
   }
@@ -271,9 +269,7 @@
       const question = (questionsByRound[roundId] || []).find((q) => q.id === questionId);
 
       tile.querySelector('.show-question').onclick = async () => {
-        if (activeQuestionId === null && selectedRoundId === roundId) {
-          await post('/api/admin/games/<%= game.id %>/show-round', { roundId });
-        }
+
         const data = await post('/api/admin/games/<%= game.id %>/show-question', { roundId, questionId });
         if (data.error) {
           alert(data.error);
@@ -306,33 +302,26 @@
         await post('/api/admin/games/<%= game.id %>/close-question');
       };
     });
-    const finishRoundButton = questionRibbon.querySelector('.finish-round');
-    if (finishRoundButton) {
-      finishRoundButton.onclick = async () => {
+    questionRibbon.querySelectorAll('.start-round').forEach((btn) => {
+      btn.onclick = async () => {
+        await post('/api/admin/games/<%= game.id %>/show-round', { roundId: Number(btn.dataset.roundId) });
+      };
+    });
+    questionRibbon.querySelectorAll('.finish-round').forEach((btn) => {
+      btn.onclick = async () => {
+        await post('/api/admin/games/<%= game.id %>/show-round', { roundId: Number(btn.dataset.roundId) });
         const data = await post('/api/admin/games/<%= game.id %>/finish-round');
         if (data.error) alert(data.error);
       };
-    }
+    });
+    const finishAll = document.getElementById('finish-all-rounds');
+    if (finishAll) finishAll.onclick = async () => { await post('/api/admin/games/<%= game.id %>/finish'); location.reload(); };
   }
 
-  function renderRoundSelect() {
-    if (!roundSelect) return;
-    roundSelect.innerHTML = rounds.map((round) => '<option value="' + round.id + '">' + round.name + ' (' + round.question_type + ')</option>').join('');
-    roundSelect.onchange = () => {
-      selectedRoundId = Number(roundSelect.value);
-      activeQuestionId = null;
-      post('/api/admin/games/<%= game.id %>/show-round', { roundId: selectedRoundId });
-      renderQuestionRibbon();
-    };
-    selectedRoundId = Number(roundSelect.value);
-    renderQuestionRibbon();
-  }
 
   document.getElementById('toggle-qr').onclick = async () => {
     const data = await post('/api/admin/games/<%= game.id %>/screen', { key: 'showQr' });
-    if (data && data.screen && data.screen.showQr === false && selectedRoundId) {
-      await post('/api/admin/games/<%= game.id %>/show-round', { roundId: selectedRoundId });
-    }
+
   };
 
   function renderPlayersScoreTable() {
@@ -399,8 +388,17 @@
     renderPlayersScoreTable();
   });
 
-  renderRoundSelect();
+  renderQuestionRibbon();
   renderPlayersScoreTable();
+
+  document.querySelectorAll('.delete-session').forEach((button) => {
+    button.onclick = async () => {
+      if (!confirm('Удалить сессию и все ее результаты?')) return;
+      const data = await post('/api/admin/games/<%= game.id %>/sessions/' + button.dataset.sessionId + '/delete');
+      if (data.error) return alert(data.error);
+      location.reload();
+    };
+  });
 </script>
 
 <%- include('partials/footer') %>

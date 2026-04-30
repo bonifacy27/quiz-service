@@ -9,12 +9,11 @@
 <body class="fullscreen-page">
   <main class="fullscreen-stage">
     <section class="card fullscreen-card" id="question-block">
-      <h1 id="screen-title"><%= game.title %></h1>
+      <div id="screen-content" class="screen-content"></div>
       <div class="screen-meta" id="screen-meta">
-        <span><strong>Таймер:</strong> <span id="screen-timer">—</span></span>
+        <span id="screen-timer" class="screen-timer-value">—</span>
       </div>
       <div class="timer-strip" id="screen-timer-strip"><div id="timer-strip-fill" class="timer-strip-fill"></div></div>
-      <div id="screen-content"></div>
       <div id="answer-box" class="notice" style="display:none"></div>
     </section>
 
@@ -42,12 +41,9 @@
   <script>
     const socket = io();
     const game = <%- JSON.stringify(game) %>;
-    const titleEl = document.getElementById('screen-title');
     const contentEl = document.getElementById('screen-content');
     const timerEl = document.getElementById('screen-timer');
     const screenMeta = document.getElementById('screen-meta');
-    const screenTimerStrip = document.getElementById('screen-timer-strip');
-    const timerStripFill = document.getElementById('timer-strip-fill');
     const answerBox = document.getElementById('answer-box');
     const leaderboardBody = document.getElementById('leaderboard-body');
     const leaderboardHeadRow = document.getElementById('leaderboard-head-row');
@@ -103,7 +99,6 @@
 
     socket.on('question:show', (question) => {
       answerBox.style.display = 'none';
-      titleEl.innerText = '';
       stopMediaPlayback();
       showTimerControls();
       renderQuestion(question);
@@ -159,7 +154,6 @@
       hideTimerControls();
       answerBox.style.display = 'none';
       const roundLabel = roundNumber ? 'Раунд ' + roundNumber : 'Раунд';
-      titleEl.innerText = '';
       contentEl.innerHTML = '<div class="notice round-only">'
         + '<h2>' + roundLabel + '</h2>'
         + '<h3>' + (name || '') + '</h3>'
@@ -177,7 +171,6 @@
     });
 
     socket.on('game:finished', () => {
-      titleEl.innerText = 'Игра завершена';
       contentEl.innerHTML = '<div class="notice">Ведущий завершил игру. Можно запускать новую сессию.</div>';
       stopTimer();
       stopMediaPlayback();
@@ -239,17 +232,15 @@
         timerInterval = null;
       }
       timerEl.innerText = '—';
-      timerStripFill.style.width = '0%';
+      screenMeta.style.background = 'conic-gradient(#22c55e 0deg, #1e293b 0deg)';
     }
 
     function hideTimerControls() {
       screenMeta.style.display = 'none';
-      screenTimerStrip.style.display = 'none';
     }
 
     function showTimerControls() {
       screenMeta.style.display = 'flex';
-      screenTimerStrip.style.display = 'block';
     }
 
     function startTimer(timerEndsAt, durationMs) {
@@ -263,7 +254,8 @@
 
         if (durationMs > 0) {
           const percent = Math.max(0, Math.min(100, (msLeft / durationMs) * 100));
-          timerStripFill.style.width = percent + '%';
+          const angle = (percent / 100) * 360;
+          screenMeta.style.background = 'conic-gradient(#22c55e ' + angle + 'deg, #1e293b ' + angle + 'deg)';
         }
 
         if (msLeft <= 0) {
@@ -346,8 +338,11 @@
         const video = document.createElement('video');
         video.src = mediaUrl;
         video.autoplay = true;
-        video.controls = true;
+        video.controls = false;
         video.className = 'question-media';
+        video.playsInline = true;
+        video.setAttribute('playsinline', '');
+        video.setAttribute('webkit-playsinline', '');
         video.onended = () => {
           if (pendingTimerAfterVideo && questionId) {
             pendingTimerAfterVideo = false;
@@ -370,8 +365,11 @@
       const video = document.createElement('video');
       video.src = mediaUrl;
       video.autoplay = true;
-      video.controls = true;
+      video.controls = false;
       video.className = 'question-media';
+      video.playsInline = true;
+      video.setAttribute('playsinline', '');
+      video.setAttribute('webkit-playsinline', '');
       activeMediaElement = video;
       const titleNode = contentEl.querySelector('.screen-question-title');
       if (titleNode) titleNode.after(video);

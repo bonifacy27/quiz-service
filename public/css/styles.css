@@ -193,12 +193,6 @@ textarea {
   min-width: 320px;
 }
 
-.screen-layout {
-  display: grid;
-  grid-template-columns: 64px minmax(0, 1fr);
-  gap: 16px;
-  align-items: start;
-}
 
 .screen-content {
   min-height: 66vh;
@@ -206,9 +200,7 @@ textarea {
 
 .screen-meta {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
+  justify-content: center;
   margin: 8px 0;
 }
 
@@ -219,14 +211,12 @@ textarea {
 }
 
 .timer-strip {
-  width: 12px;
-  height: 220px;
+  width: min(100%, 980px);
+  height: 10px;
   border-radius: 999px;
   background: #1e293b;
   overflow: hidden;
-  margin-bottom: 0;
-  display: flex;
-  align-items: flex-end;
+  margin: 0 auto 14px;
 }
 
 .timer-strip-fill {

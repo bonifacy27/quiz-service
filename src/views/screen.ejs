@@ -346,8 +346,11 @@
         const video = document.createElement('video');
         video.src = mediaUrl;
         video.autoplay = true;
-        video.controls = true;
+        video.controls = false;
         video.className = 'question-media';
+        video.playsInline = true;
+        video.setAttribute('playsinline', '');
+        video.setAttribute('webkit-playsinline', '');
         video.onended = () => {
           if (pendingTimerAfterVideo && questionId) {
             pendingTimerAfterVideo = false;
@@ -370,8 +373,11 @@
       const video = document.createElement('video');
       video.src = mediaUrl;
       video.autoplay = true;
-      video.controls = true;
+      video.controls = false;
       video.className = 'question-media';
+      video.playsInline = true;
+      video.setAttribute('playsinline', '');
+      video.setAttribute('webkit-playsinline', '');
       activeMediaElement = video;
       const titleNode = contentEl.querySelector('.screen-question-title');
       if (titleNode) titleNode.after(video);

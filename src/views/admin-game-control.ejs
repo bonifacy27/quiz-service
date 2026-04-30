@@ -252,9 +252,9 @@
 
       return '<section class="card">'
         + '<h3>Раунд ' + (roundIndex + 1) + ': ' + round.name + '</h3>'
-        + '<div class="row wrap"><button class="button start-round" data-round-id="' + roundId + '">Начать раунд ' + (roundIndex + 1) + '</button>'
-        + '<button class="button button-outline finish-round" data-round-id="' + roundId + '">Завершить раунд ' + (roundIndex + 1) + '</button></div>'
+        + '<div class="row wrap"><button class="button start-round" data-round-id="' + roundId + '">Начать раунд ' + (roundIndex + 1) + '</button></div>'
         + questionsHtml
+        + '<div class="row wrap"><button class="button button-outline finish-round" data-round-id="' + roundId + '">Завершить раунд ' + (roundIndex + 1) + '</button></div>'
         + '</section>';
     }).join('')
       + '<div class="row wrap"><button class="button button-danger" id="finish-all-rounds">Завершить раунды</button></div>';

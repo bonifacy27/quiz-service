@@ -796,8 +796,21 @@ router.get("/admin/games/:id/control", requireAdmin, async (req, res) => {
     [game.id]
   );
   const sessions = await all(
-    "SELECT * FROM game_sessions WHERE game_id = ? ORDER BY session_number DESC, id DESC",
-    [game.id]
+    `SELECT gs.*,
+            COALESCE(stats.players_total, 0) AS players_total,
+            COALESCE(stats.players_online, 0) AS players_online
+     FROM game_sessions gs
+     LEFT JOIN (
+       SELECT session_id,
+              COUNT(*) AS players_total,
+              SUM(CASE WHEN connected = 1 THEN 1 ELSE 0 END) AS players_online
+       FROM players
+       WHERE game_id = ?
+       GROUP BY session_id
+     ) stats ON stats.session_id = gs.id
+     WHERE gs.game_id = ?
+     ORDER BY gs.session_number DESC, gs.id DESC`,
+    [game.id, game.id]
   );
   const currentSessionId = game.current_session_id || null;
   const players = currentSessionId

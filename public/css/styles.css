@@ -338,6 +338,13 @@ textarea {
   background: #f8fafc;
 }
 
+
+.question-tile-active {
+  background: #e0f2fe;
+  border-color: #0284c7;
+  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.2);
+}
+
 .question-tile h4 {
   margin-top: 0;
   margin-bottom: 6px;

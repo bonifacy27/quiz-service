@@ -212,6 +212,7 @@
       const isActive = question.id === activeQuestionId;
       const isPlayed = playedQuestionIds.has(question.id);
       const controlsClass = isActive ? '' : 'hidden';
+      const activeTileClass = isActive ? ' question-tile-active' : '';
       const answersClass = (isActive || isPlayed) ? '' : 'hidden';
       const showQuestionDisabled = connectedPlayersCount ? '' : 'disabled';
       const hasQuestionVideo = question.payload
@@ -223,7 +224,7 @@
       const hasMedia = Boolean(hasQuestionVideo || hasQuestionAudio);
       const mediaIcon = hasMedia ? (hasQuestionVideo ? ' 🎬' : ' 🔊') : '';
 
-      return '<article class=\"question-tile\" id=\"question-tile-' + question.id + '\" data-question-id=\"' + question.id + '\" data-round-id=\"' + roundId + '\">'
+      return '<article class=\"question-tile' + activeTileClass + '\" id=\"question-tile-' + question.id + '\" data-question-id=\"' + question.id + '\" data-round-id=\"' + roundId + '\">'
         + '<h4>' + (index + 1) + '. ' + question.title + mediaIcon + '</h4>'
         + optionsHtml
         + '<div class="question-controls">'

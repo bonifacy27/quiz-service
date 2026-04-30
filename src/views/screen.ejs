@@ -135,7 +135,10 @@
       if (type === 'abcd') {
         answerBox.style.display = 'none';
       } else {
-        answerBox.innerText = 'Правильный ответ показан';
+        answerBox.innerText = text || 'Правильный ответ показан';
+        answerBox.classList.remove('answer-pop');
+        void answerBox.offsetWidth;
+        answerBox.classList.add('answer-pop');
         answerBox.style.display = 'block';
       }
     });
@@ -306,7 +309,7 @@
       } else if (question.type === 'buzz') {
         contentEl.innerHTML += '<div class="big-label">Кто быстрее нажмет первым?</div>';
       } else {
-        contentEl.innerHTML += '<div class="notice">Вопрос открыт. Игроки отвечают.</div>';
+        
       }
     }
 

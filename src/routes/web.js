@@ -88,14 +88,28 @@ function buildQuestionPayload(type, body) {
   }
 
   if (type === "text") {
-    const correctText = String(body.correctText || "").trim();
-    if (!correctText) return { error: "Для типа text заполните правильный текстовый ответ" };
+    const correctAnswer = String(body.correctAnswer || body.correctText || "").trim();
+    if (!correctAnswer) return { error: "Для типа text заполните правильный ответ" };
+
+    const audioQuestionUrl = String(body.audioQuestionUrl || "").trim();
+    const audioAnswerUrl = String(body.audioAnswerUrl || "").trim();
+    const videoQuestionUrl = String(body.videoQuestionUrl || "").trim();
+    const videoAnswerUrl = String(body.videoAnswerUrl || "").trim();
+    const fallbackAudioQuestionUrl = mediaType === "audio" ? mediaUrl : "";
+    const fallbackVideoQuestionUrl = mediaType === "video" ? mediaUrl : "";
 
     return {
       payload: {
-        correctText,
+        correctAnswer,
+        correctText: correctAnswer,
         timeLimitSec: timeLimitSec > 0 ? timeLimitSec : 30,
         imageUrl,
+        audioQuestionUrl: audioQuestionUrl || fallbackAudioQuestionUrl,
+        audioAnswerUrl,
+        videoQuestionUrl: videoQuestionUrl || fallbackVideoQuestionUrl,
+        videoAnswerUrl,
+        mediaUrl,
+        mediaType,
         hostComment,
       },
     };

@@ -14,7 +14,7 @@ function evaluateAnswer(question, answer) {
     return { isCorrect, scoreDelta: isCorrect ? 100 : 0 };
   }
 
-  if (question.type === "text") {
+  if (question.type === "text" || question.type === "quiz") {
     const userText = normalizeText(answer && answer.text);
     const correctText = normalizeText(question.payload.correctAnswer || question.payload.correctText);
     const isCorrect = Boolean(userText) && userText === correctText;
@@ -38,7 +38,7 @@ function getCorrectAnswerText(question) {
     const options = Array.isArray(question.payload.options) ? question.payload.options : [];
     return options[correct] ? `Верный ответ: ${options[correct]}` : "";
   }
-  if (question.type === "text") return `Верный ответ: ${question.payload.correctAnswer || question.payload.correctText || ""}`;
+  if (question.type === "text" || question.type === "quiz") return `Верный ответ: ${question.payload.correctAnswer || question.payload.correctText || ""}`;
   if (question.type === "number") return `Верный ответ: ${question.payload.correctNumber}`;
   return "";
 }

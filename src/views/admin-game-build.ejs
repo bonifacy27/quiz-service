@@ -186,7 +186,7 @@
                         <input type="text" name="title" maxlength="200" value="<%= question.title %>" required style="flex:1 1 420px" />
                         <input type="number" name="points" min="1" step="1" value="<%= question.points %>" required style="max-width:120px" />
                       </div>
-                      <% if (question.type === 'text') { %><input type="text" name="correctAnswer" value="<%= question.payload.correctAnswer || question.payload.correctText || '' %>" placeholder="Правильный ответ" required /><% } %>
+                      <% if (question.type === 'quiz' || question.type === 'text') { %><input type="text" name="correctAnswer" value="<%= question.payload.correctAnswer || question.payload.correctText || '' %>" placeholder="Правильный ответ" required /><% } %>
                       <% if (question.type === 'number') { %><input type="number" name="correctNumber" step="any" value="<%= question.payload.correctNumber ?? '' %>" placeholder="Правильное число" required /><% } %>
                       <input type="hidden" name="imageUrl" value="<%= question.payload.imageUrl || '' %>" class="image-url-input" />
                       <input type="hidden" name="mediaUrl" value="<%= question.payload.mediaUrl || '' %>" class="media-url-input" />
@@ -328,7 +328,7 @@
                 </div>
                 <div class="media-preview-wrap" style="display:none"></div>
                 <div class="answer-media-preview-wrap" style="display:none"></div>
-                <div data-type-block="text" <%= round.question_type === 'text' ? '' : 'style="display:none"' %>>
+                <div data-type-block="text" <%= round.question_type === 'quiz' || round.question_type === 'text' ? '' : 'style="display:none"' %>>
                   <input type="text" name="correctAnswer" placeholder="Правильный ответ" />
                 </div>
                 <div data-type-block="number" <%= round.question_type === 'number' ? '' : 'style="display:none"' %>>
@@ -352,7 +352,7 @@
   <form method="post" action="/admin/games/<%= game.id %>/rounds" class="round-add-inline" id="round-create-form" hidden>
     <select name="questionType" required>
       <option value="abcd">abcd</option>
-      <option value="text">text</option>
+      <option value="text">quiz</option>
       <option value="number">number</option>
       <option value="buzz">buzz</option>
     </select>

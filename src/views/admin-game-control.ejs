@@ -174,7 +174,7 @@
       const optionText = question.payload && question.payload.options && question.payload.options[idx] ? question.payload.options[idx] : '';
       return optionLetter(idx) + '. ' + optionText;
     }
-    if (question.type === 'text') return String(answer && answer.text || '—');
+    if (question.type === 'text' || question.type === 'quiz') return String(answer && answer.text || '—');
     if (question.type === 'number') return String(answer && answer.number || '—');
     return JSON.stringify(answer || {});
   }
@@ -227,6 +227,7 @@
 
       return '<article class=\"question-tile' + activeTileClass + '\" id=\"question-tile-' + question.id + '\" data-question-id=\"' + question.id + '\" data-round-id=\"' + roundId + '\">'
         + '<h4>' + (index + 1) + '. ' + question.title + mediaIcon + '</h4>'
+        + ((question.type === 'text' || question.type === 'quiz') ? '<p class="muted"><strong>Правильный ответ:</strong> ' + String((question.payload && (question.payload.correctAnswer || question.payload.correctText)) || '—') + '</p>' : '')
         + optionsHtml
         + '<div class="question-controls">'
         + '  <button class="button show-question" ' + showQuestionDisabled + '>Показать вопрос</button>'
@@ -305,6 +306,10 @@
       };
       tile.querySelectorAll('.answer-override').forEach((checkbox) => {
         checkbox.onchange = async () => {
+          const rows = answersByQuestion.get(questionId) || [];
+          const row = rows.find((r) => Number(r.playerId) === Number(checkbox.dataset.playerId));
+          if (row) { row.manualAccepted = checkbox.checked; row.isCorrect = checkbox.checked; }
+          renderQuestionRibbon();
           await post('/api/admin/games/<%= game.id %>/answers/override', {
             questionId,
             playerId: Number(checkbox.dataset.playerId),
@@ -384,7 +389,7 @@
   socket.on('answer:override', (data) => {
     const rows = answersByQuestion.get(data.questionId) || [];
     const item = rows.find((r) => Number(r.playerId) === Number(data.playerId));
-    if (item) item.manualAccepted = Boolean(data.accepted);
+    if (item) { item.manualAccepted = Boolean(data.accepted); item.isCorrect = Boolean(data.accepted); }
     renderQuestionRibbon();
   });
 

@@ -707,3 +707,10 @@ details > summary {
   from { transform: scale(.85); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
 }
+
+.answer-video-overlay {
+  position: relative;
+  z-index: 3;
+  margin-top: -8px;
+  box-shadow: 0 12px 36px rgba(0,0,0,.35);
+}

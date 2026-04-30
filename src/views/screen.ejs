@@ -342,7 +342,7 @@
         video.src = mediaUrl;
         video.autoplay = true;
         video.controls = false;
-        video.className = 'question-media';
+        video.className = role === 'answer' ? 'question-media answer-video-overlay' : 'question-media';
         video.playsInline = true;
         video.setAttribute('playsinline', '');
         video.setAttribute('webkit-playsinline', '');
@@ -369,13 +369,13 @@
       video.src = mediaUrl;
       video.autoplay = true;
       video.controls = false;
-      video.className = 'question-media';
+      video.className = role === 'answer' ? 'question-media answer-video-overlay' : 'question-media';
       video.playsInline = true;
       video.setAttribute('playsinline', '');
       video.setAttribute('webkit-playsinline', '');
       activeMediaElement = video;
-      const titleNode = contentEl.querySelector('.screen-question-title');
-      if (titleNode) titleNode.after(video);
+      const mediaSlot = contentEl.querySelector('.question-media-slot');
+      if (mediaSlot) mediaSlot.appendChild(video);
       else contentEl.prepend(video);
       video.play().catch(() => {});
     }

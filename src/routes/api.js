@@ -285,6 +285,28 @@ router.post("/admin/games", requireAdmin, async (req, res) => {
   res.json({ ok: true, gameId, code });
 });
 
+
+router.post("/admin/games/:id/sessions/:sessionId/delete", requireAdmin, async (req, res) => {
+  await ensureExtendedGameSchema();
+  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).json({ error: "Game not found" });
+
+  const sessionId = Number(req.params.sessionId || 0);
+  if (!sessionId) return res.status(400).json({ error: "Session not selected" });
+  if (Number(game.current_session_id || 0) === sessionId) {
+    return res.status(400).json({ error: "Нельзя удалить активную сессию" });
+  }
+
+  const session = await get("SELECT * FROM game_sessions WHERE id = ? AND game_id = ?", [sessionId, game.id]);
+  if (!session) return res.status(404).json({ error: "Session not found" });
+
+  await run("DELETE FROM player_answers WHERE game_id = ? AND session_id = ?", [game.id, sessionId]);
+  await run("DELETE FROM players WHERE game_id = ? AND session_id = ?", [game.id, sessionId]);
+  await run("DELETE FROM game_sessions WHERE id = ? AND game_id = ?", [sessionId, game.id]);
+
+  res.json({ ok: true });
+});
+
 router.post("/admin/games/:id/start", requireAdmin, async (req, res) => {
   await ensureExtendedGameSchema();
   const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);

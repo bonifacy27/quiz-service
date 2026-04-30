@@ -28,9 +28,11 @@
     </section>
 
     <section class="card fullscreen-card" id="players-block" style="display:none"><h2>Игроки</h2><ul id="players-list"></ul></section>
-    <section class="card fullscreen-card" id="leaderboard-block" style="display:none">
-      <h2>Таблица очков</h2>
-      <table><thead><tr><th>Место</th><th>Игрок</th><th>Очки</th></tr></thead><tbody id="leaderboard-body"></tbody></table>
+    <section class="card fullscreen-card scoreboard-block" id="leaderboard-block" style="display:none">
+      <h2 id="leaderboard-title">Промежуточные итоги</h2>
+      <div class="table-scroll scoreboard-table-wrap">
+        <table class="scoreboard-table"><thead><tr id="leaderboard-head-row"><th>Место</th><th>Игрок</th><th>Итог</th></tr></thead><tbody id="leaderboard-body"></tbody></table>
+      </div>
     </section>
     <section class="card fullscreen-card" id="winners-block" style="display:none"><h2>Победители</h2><ol id="winners-list"></ol></section>
     <section class="card fullscreen-card" id="round-scores-block" style="display:none"><h2>Итоги раунда</h2><div id="round-scores"></div></section>
@@ -48,6 +50,8 @@
     const timerStripFill = document.getElementById('timer-strip-fill');
     const answerBox = document.getElementById('answer-box');
     const leaderboardBody = document.getElementById('leaderboard-body');
+    const leaderboardHeadRow = document.getElementById('leaderboard-head-row');
+    const leaderboardTitle = document.getElementById('leaderboard-title');
     const winnersList = document.getElementById('winners-list');
     const playersList = document.getElementById('players-list');
     const qrPlayersList = document.getElementById('qr-players-list');
@@ -60,6 +64,8 @@
 
     let timerInterval = null;
     let latestLeaderboard = [];
+    let latestDetailedLeaderboard = [];
+    let latestRounds = [];
     let activeTimerDurationMs = 0;
     let activeMediaElement = null;
     let pendingTimerAfterVideo = false;
@@ -187,15 +193,35 @@
       playersList.innerHTML = players.map((p) => '<li>' + p.name + ' — ' + (p.connected ? 'online' : 'offline') + '</li>').join('');
     });
 
-    socket.on('leaderboard:update', ({ leaderboard }) => {
-      latestLeaderboard = leaderboard;
+    socket.on('leaderboard:update', ({ leaderboard, detailedLeaderboard, rounds, isFinal }) => {
+      latestLeaderboard = Array.isArray(leaderboard) ? leaderboard : [];
+      latestDetailedLeaderboard = Array.isArray(detailedLeaderboard) ? detailedLeaderboard : [];
+      latestRounds = Array.isArray(rounds) ? rounds : [];
+
+      leaderboardTitle.textContent = isFinal ? 'Финал' : 'Промежуточные итоги';
+
+      const roundHeaders = latestRounds.map((round, index) => '<th>Раунд ' + (index + 1) + '</th>').join('');
+      leaderboardHeadRow.innerHTML = '<th>Место</th><th>Игрок</th>' + roundHeaders + '<th>Итог</th>';
+
+      const rowsToRender = latestDetailedLeaderboard.length ? latestDetailedLeaderboard : latestLeaderboard.map((row) => ({
+        place: row.place,
+        name: row.name,
+        score: row.score,
+        byRound: [],
+      }));
+
       leaderboardBody.innerHTML = '';
-      leaderboard.forEach((row) => {
+      rowsToRender.forEach((row) => {
         const tr = document.createElement('tr');
-        tr.innerHTML = '<td>' + row.place + '</td><td>' + row.name + '</td><td>' + row.score + '</td>';
+        const perRound = latestRounds.map((round) => {
+          const scoreByRound = (row.byRound || []).find((item) => Number(item.roundId) === Number(round.id));
+          return '<td>' + (scoreByRound ? scoreByRound.score : 0) + '</td>';
+        }).join('');
+        tr.innerHTML = '<td>' + row.place + '</td><td>' + row.name + '</td>' + perRound + '<td><strong>' + row.score + '</strong></td>';
         leaderboardBody.appendChild(tr);
       });
-      renderWinners(leaderboard);
+
+      renderWinners(latestLeaderboard);
     });
 
     function renderWinners(leaderboard) {

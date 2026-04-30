@@ -28,6 +28,33 @@
       <button class="button" id="start-new">Запустить новую игру</button>
       <button class="button button-danger" id="finish-game">Завершить игру</button>
     </div>
+    <div class="session-history">
+      <% const activeSession = sessions.find((session) => session.id === currentSessionId && session.status === 'live'); %>
+      <h3>Текущая сессия</h3>
+      <% if (activeSession) { %>
+        <p>
+          Началась: <strong><%= new Date(activeSession.started_at).toLocaleString('ru-RU') %></strong>,
+          игроков онлайн: <strong><%= Number(activeSession.players_online || 0) %></strong>
+        </p>
+      <% } else { %>
+        <p class="muted">Активной сессии сейчас нет.</p>
+      <% } %>
+
+      <h3>История завершенных игр</h3>
+      <% const finishedSessions = sessions.filter((session) => session.status === 'finished'); %>
+      <% if (finishedSessions.length) { %>
+        <ul>
+          <% finishedSessions.forEach((session) => { %>
+            <li>
+              Сессия #<%= session.session_number %> — старт <%= new Date(session.started_at).toLocaleString('ru-RU') %>,
+              игроков участвовало: <strong><%= Number(session.players_total || 0) %></strong>
+            </li>
+          <% }) %>
+        </ul>
+      <% } else { %>
+        <p class="muted">Завершенных сессий пока нет.</p>
+      <% } %>
+    </div>
   </details>
 </section>
 

@@ -23,14 +23,78 @@ async function runLeaderboardQuery(gameId) {
 
 async function emitLeaderboard(io, gameCode, gameId) {
   const leaderboard = await getLeaderboard(gameId);
-  io.to(`game:${gameCode}`).emit("leaderboard:update", { leaderboard });
+  const detailed = await getDetailedLeaderboard(gameId);
+  io.to(`game:${gameCode}`).emit("leaderboard:update", {
+    leaderboard,
+    detailedLeaderboard: detailed.rows,
+    rounds: detailed.rounds,
+    isFinal: detailed.allQuestionsPlayed,
+  });
+}
+
+
+async function getDetailedLeaderboard(gameId) {
+  const game = await get("SELECT current_session_id FROM games WHERE id = ?", [gameId]);
+  if (!game || !game.current_session_id) {
+    return { rows: [], rounds: [], allQuestionsPlayed: false };
+  }
+
+  const rounds = await all("SELECT id, name FROM rounds WHERE game_id = ? ORDER BY sort_order ASC, id ASC", [gameId]);
+  const players = await all(
+    "SELECT id, name, score FROM players WHERE game_id = ? AND session_id = ? ORDER BY score DESC, id ASC",
+    [gameId, game.current_session_id]
+  );
+  const roundScores = await all(
+    `SELECT pa.player_id, q.round_id, COALESCE(SUM(pa.score_delta), 0) AS score
+     FROM player_answers pa
+     JOIN questions q ON q.id = pa.question_id
+     WHERE pa.game_id = ? AND pa.session_id = ?
+     GROUP BY pa.player_id, q.round_id`,
+    [gameId, game.current_session_id]
+  );
+  const progress = await get(
+    `SELECT
+      (SELECT COUNT(*) FROM questions WHERE game_id = ?) AS total_questions,
+      (SELECT COUNT(DISTINCT pa.question_id)
+       FROM player_answers pa
+       WHERE pa.game_id = ? AND pa.session_id = ?) AS played_questions`,
+    [gameId, gameId, game.current_session_id]
+  );
+
+  const roundScoreMap = new Map();
+  roundScores.forEach((row) => {
+    roundScoreMap.set(`${row.player_id}:${row.round_id}`, Number(row.score || 0));
+  });
+
+  const rows = players.map((player, index) => ({
+    place: index + 1,
+    playerId: player.id,
+    name: player.name,
+    score: Number(player.score || 0),
+    byRound: rounds.map((round) => ({
+      roundId: round.id,
+      score: roundScoreMap.get(`${player.id}:${round.id}`) || 0,
+    })),
+  }));
+
+  const totalQuestions = Number(progress && progress.total_questions || 0);
+  const playedQuestions = Number(progress && progress.played_questions || 0);
+  const allQuestionsPlayed = totalQuestions > 0 && playedQuestions >= totalQuestions;
+
+  return { rows, rounds, allQuestionsPlayed };
 }
 
 async function emitLeaderboardToSocket(socket, gameCode) {
   const game = await get("SELECT id FROM games WHERE code = ?", [gameCode]);
   if (!game) return;
   const leaderboard = await getLeaderboard(game.id);
-  socket.emit("leaderboard:update", { leaderboard });
+  const detailed = await getDetailedLeaderboard(game.id);
+  socket.emit("leaderboard:update", {
+    leaderboard,
+    detailedLeaderboard: detailed.rows,
+    rounds: detailed.rounds,
+    isFinal: detailed.allQuestionsPlayed,
+  });
 }
 
 function emitCurrentQuestion(socket, gameCode) {

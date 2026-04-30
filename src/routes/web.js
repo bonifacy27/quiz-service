@@ -228,14 +228,33 @@ router.post("/join/:code", async (req, res) => {
   const name = String(req.body.name || "").trim().slice(0, 40);
   if (!name) return res.status(400).render("error", { message: "Введите имя игрока" });
 
-  const sessionToken = crypto.randomUUID();
-  const result = await run(
-    "INSERT INTO players (game_id, session_id, name, session_token, connected) VALUES (?, ?, ?, ?, 1)",
-    [game.id, game.current_session_id, name, sessionToken]
-  );
+  let playerId = null;
+  let sessionToken = String(req.session.player && req.session.player.sessionToken || "");
+
+  if (sessionToken) {
+    const existingPlayer = await get(
+      `SELECT id
+       FROM players
+       WHERE game_id = ? AND session_id = ? AND session_token = ?`,
+      [game.id, game.current_session_id, sessionToken]
+    );
+    if (existingPlayer) {
+      playerId = existingPlayer.id;
+      await run("UPDATE players SET name = ?, connected = 1 WHERE id = ?", [name, playerId]);
+    }
+  }
+
+  if (!playerId) {
+    sessionToken = crypto.randomUUID();
+    const result = await run(
+      "INSERT INTO players (game_id, session_id, name, session_token, connected) VALUES (?, ?, ?, ?, 1)",
+      [game.id, game.current_session_id, name, sessionToken]
+    );
+    playerId = result.lastID;
+  }
 
   req.session.player = {
-    id: result.lastID,
+    id: playerId,
     name,
     sessionToken,
     gameCode: game.code,
@@ -243,7 +262,7 @@ router.post("/join/:code", async (req, res) => {
   };
 
   const liveGame = ensureGame(game.code);
-  liveGame.players.set(result.lastID, { id: result.lastID, name });
+  liveGame.players.set(playerId, { id: playerId, name, connected: 1 });
 
   res.redirect(`/player/${game.code}`);
 });
@@ -796,8 +815,21 @@ router.get("/admin/games/:id/control", requireAdmin, async (req, res) => {
     [game.id]
   );
   const sessions = await all(
-    "SELECT * FROM game_sessions WHERE game_id = ? ORDER BY session_number DESC, id DESC",
-    [game.id]
+    `SELECT gs.*,
+            COALESCE(stats.players_total, 0) AS players_total,
+            COALESCE(stats.players_online, 0) AS players_online
+     FROM game_sessions gs
+     LEFT JOIN (
+       SELECT session_id,
+              COUNT(*) AS players_total,
+              SUM(CASE WHEN connected = 1 THEN 1 ELSE 0 END) AS players_online
+       FROM players
+       WHERE game_id = ?
+       GROUP BY session_id
+     ) stats ON stats.session_id = gs.id
+     WHERE gs.game_id = ?
+     ORDER BY gs.session_number DESC, gs.id DESC`,
+    [game.id, game.id]
   );
   const currentSessionId = game.current_session_id || null;
   const players = currentSessionId

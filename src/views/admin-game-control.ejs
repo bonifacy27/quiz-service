@@ -186,11 +186,12 @@
 
   function renderAnswerRows(question) {
     const rows = answersByQuestion.get(question.id) || [];
-    if (!rows.length) return '<tr><td colspan="3">Ответов пока нет.</td></tr>';
+    if (!rows.length) return '<tr><td colspan="4">Ответов пока нет.</td></tr>';
     return rows.map((item) => '<tr>'
       + '<td>' + findPlayerName(item.playerId) + '</td>'
       + '<td>' + formatAnswer(question, item.answer) + '</td>'
       + '<td>' + (item.isCorrect ? '✅ верно' : '❌ неверно') + '</td>'
+      + '<td><input type="checkbox" class="answer-override" data-player-id="' + item.playerId + '" ' + (item.manualAccepted ? 'checked' : '') + ' /></td>'
       + '</tr>').join('');
   }
 
@@ -243,7 +244,7 @@
         + (isPlayed && !isActive ? '<p class="muted">Вопрос уже сыгран.</p>' : '')
         + '  <div class="table-scroll">'
         + '    <table>'
-        + '      <thead><tr><th>Игрок</th><th>Ответ</th><th>Результат</th></tr></thead>'
+        + '      <thead><tr><th>Игрок</th><th>Ответ</th><th>Результат</th><th>Засчитать ответ</th></tr></thead>'
         + '      <tbody class="answers-table-body">' + renderAnswerRows(question) + '</tbody>'
         + '    </table>'
         + '  </div>'
@@ -302,6 +303,16 @@
       tile.querySelector('.close-question').onclick = async () => {
         await post('/api/admin/games/<%= game.id %>/close-question');
       };
+      tile.querySelectorAll('.answer-override').forEach((checkbox) => {
+        checkbox.onchange = async () => {
+          await post('/api/admin/games/<%= game.id %>/answers/override', {
+            questionId,
+            playerId: Number(checkbox.dataset.playerId),
+            accepted: checkbox.checked,
+          });
+        };
+      });
+
     });
     questionRibbon.querySelectorAll('.start-round').forEach((btn) => {
       btn.onclick = async () => {
@@ -364,10 +375,17 @@
     if (!answersByQuestion.has(data.questionId)) {
       answersByQuestion.set(data.questionId, []);
     }
-    answersByQuestion.get(data.questionId).push(data);
+    answersByQuestion.get(data.questionId).push({ ...data, manualAccepted: false });
     if (activeQuestionId === data.questionId) {
       renderQuestionRibbon();
     }
+  });
+
+  socket.on('answer:override', (data) => {
+    const rows = answersByQuestion.get(data.questionId) || [];
+    const item = rows.find((r) => Number(r.playerId) === Number(data.playerId));
+    if (item) item.manualAccepted = Boolean(data.accepted);
+    renderQuestionRibbon();
   });
 
   socket.on('player:list', ({ players }) => {

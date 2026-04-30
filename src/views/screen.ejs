@@ -10,11 +10,13 @@
   <main class="fullscreen-stage">
     <section class="card fullscreen-card" id="question-block">
       <h1 id="screen-title"><%= game.title %></h1>
-      <div class="screen-meta" id="screen-meta">
-        <span><strong>Таймер:</strong> <span id="screen-timer">—</span></span>
+      <div class="screen-layout">
+        <div class="screen-meta" id="screen-meta">
+          <span id="screen-timer" class="screen-timer-value">—</span>
+          <div class="timer-strip" id="screen-timer-strip"><div id="timer-strip-fill" class="timer-strip-fill"></div></div>
+        </div>
+        <div id="screen-content" class="screen-content"></div>
       </div>
-      <div class="timer-strip" id="screen-timer-strip"><div id="timer-strip-fill" class="timer-strip-fill"></div></div>
-      <div id="screen-content"></div>
       <div id="answer-box" class="notice" style="display:none"></div>
     </section>
 
@@ -239,7 +241,7 @@
         timerInterval = null;
       }
       timerEl.innerText = '—';
-      timerStripFill.style.width = '0%';
+      timerStripFill.style.height = '0%';
     }
 
     function hideTimerControls() {
@@ -263,7 +265,7 @@
 
         if (durationMs > 0) {
           const percent = Math.max(0, Math.min(100, (msLeft / durationMs) * 100));
-          timerStripFill.style.width = percent + '%';
+          timerStripFill.style.height = percent + '%';
         }
 
         if (msLeft <= 0) {

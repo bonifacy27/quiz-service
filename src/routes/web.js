@@ -87,15 +87,29 @@ function buildQuestionPayload(type, body) {
     };
   }
 
-  if (type === "text") {
-    const correctText = String(body.correctText || "").trim();
-    if (!correctText) return { error: "Для типа text заполните правильный текстовый ответ" };
+  if (type === "text" || type === "quiz") {
+    const correctAnswer = String(body.correctAnswer || body.correctText || "").trim();
+    if (!correctAnswer) return { error: "Для типа quiz заполните правильный ответ" };
+
+    const audioQuestionUrl = String(body.audioQuestionUrl || "").trim();
+    const audioAnswerUrl = String(body.audioAnswerUrl || "").trim();
+    const videoQuestionUrl = String(body.videoQuestionUrl || "").trim();
+    const videoAnswerUrl = String(body.videoAnswerUrl || "").trim();
+    const fallbackAudioQuestionUrl = mediaType === "audio" ? mediaUrl : "";
+    const fallbackVideoQuestionUrl = mediaType === "video" ? mediaUrl : "";
 
     return {
       payload: {
-        correctText,
+        correctAnswer,
+        correctText: correctAnswer,
         timeLimitSec: timeLimitSec > 0 ? timeLimitSec : 30,
         imageUrl,
+        audioQuestionUrl: audioQuestionUrl || fallbackAudioQuestionUrl,
+        audioAnswerUrl,
+        videoQuestionUrl: videoQuestionUrl || fallbackVideoQuestionUrl,
+        videoAnswerUrl,
+        mediaUrl,
+        mediaType,
         hostComment,
       },
     };
@@ -632,7 +646,7 @@ router.post("/admin/games/:id/rounds", requireAdmin, async (req, res) => {
   const name = String(req.body.name || "").trim().slice(0, 120) || defaultRoundName;
   const questionType = String(req.body.questionType || "abcd").trim();
   const settings = parseRoundSettings(req.body);
-  if (!["abcd", "text", "number", "buzz"].includes(questionType)) {
+  if (!["abcd", "text", "quiz", "number", "buzz"].includes(questionType)) {
     return res.status(400).render("error", { message: "Выберите корректный тип вопросов раунда" });
   }
 
@@ -683,7 +697,7 @@ router.post("/admin/games/:id/rounds/:roundId/update", requireAdmin, async (req,
   const questionType = String(req.body.questionType || "").trim();
   const settings = parseRoundSettings(req.body);
   if (!name) return res.status(400).render("error", { message: "Введите название раунда" });
-  if (!["abcd", "text", "number", "buzz"].includes(questionType)) {
+  if (!["abcd", "text", "quiz", "number", "buzz"].includes(questionType)) {
     return res.status(400).render("error", { message: "Выберите корректный тип вопросов раунда" });
   }
 

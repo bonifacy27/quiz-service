@@ -221,7 +221,7 @@
         });
 
         root.appendChild(optionsGrid);
-      } else if (question.type === 'text') {
+      } else if (question.type === 'text' || question.type === 'quiz') {
         const input = document.createElement('input');
         input.type = 'text';
         input.placeholder = 'Ваш ответ';
@@ -232,6 +232,8 @@
         btn.disabled = !submitAllowed;
         btn.onclick = () => {
           if (!canSubmit(question)) return;
+          btn.disabled = true;
+          btn.style.opacity = '0.55';
           socket.emit('answer:submit', {
             gameCode: game.code,
             playerId: player.id,
@@ -252,6 +254,8 @@
         btn.disabled = !submitAllowed;
         btn.onclick = () => {
           if (!canSubmit(question)) return;
+          btn.disabled = true;
+          btn.style.opacity = '0.55';
           socket.emit('answer:submit', {
             gameCode: game.code,
             playerId: player.id,

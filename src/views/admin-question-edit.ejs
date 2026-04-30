@@ -11,7 +11,7 @@
     <label>Тип вопроса</label>
     <select name="type" required>
       <option value="abcd" <%= question.type === 'abcd' ? 'selected' : '' %>>abcd</option>
-      <option value="text" <%= question.type === 'text' ? 'selected' : '' %>>text</option>
+      <option value="text" <%= question.type === 'quiz' || question.type === 'text' ? 'selected' : '' %>>quiz</option>
       <option value="number" <%= question.type === 'number' ? 'selected' : '' %>>number</option>
       <option value="buzz" <%= question.type === 'buzz' ? 'selected' : '' %>>buzz</option>
     </select>

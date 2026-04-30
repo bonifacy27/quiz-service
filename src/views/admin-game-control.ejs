@@ -174,7 +174,7 @@
       const optionText = question.payload && question.payload.options && question.payload.options[idx] ? question.payload.options[idx] : '';
       return optionLetter(idx) + '. ' + optionText;
     }
-    if (question.type === 'text') return String(answer && answer.text || '—');
+    if (question.type === 'text' || question.type === 'quiz') return String(answer && answer.text || '—');
     if (question.type === 'number') return String(answer && answer.number || '—');
     return JSON.stringify(answer || {});
   }
@@ -186,11 +186,12 @@
 
   function renderAnswerRows(question) {
     const rows = answersByQuestion.get(question.id) || [];
-    if (!rows.length) return '<tr><td colspan="3">Ответов пока нет.</td></tr>';
+    if (!rows.length) return '<tr><td colspan="4">Ответов пока нет.</td></tr>';
     return rows.map((item) => '<tr>'
       + '<td>' + findPlayerName(item.playerId) + '</td>'
       + '<td>' + formatAnswer(question, item.answer) + '</td>'
       + '<td>' + (item.isCorrect ? '✅ верно' : '❌ неверно') + '</td>'
+      + '<td><input type="checkbox" class="answer-override" data-player-id="' + item.playerId + '" ' + (item.manualAccepted ? 'checked' : '') + ' /></td>'
       + '</tr>').join('');
   }
 
@@ -226,6 +227,7 @@
 
       return '<article class=\"question-tile' + activeTileClass + '\" id=\"question-tile-' + question.id + '\" data-question-id=\"' + question.id + '\" data-round-id=\"' + roundId + '\">'
         + '<h4>' + (index + 1) + '. ' + question.title + mediaIcon + '</h4>'
+        + ((question.type === 'text' || question.type === 'quiz') ? '<p class="muted"><strong>Правильный ответ:</strong> ' + String((question.payload && (question.payload.correctAnswer || question.payload.correctText)) || '—') + '</p>' : '')
         + optionsHtml
         + '<div class="question-controls">'
         + '  <button class="button show-question" ' + showQuestionDisabled + '>Показать вопрос</button>'
@@ -243,7 +245,7 @@
         + (isPlayed && !isActive ? '<p class="muted">Вопрос уже сыгран.</p>' : '')
         + '  <div class="table-scroll">'
         + '    <table>'
-        + '      <thead><tr><th>Игрок</th><th>Ответ</th><th>Результат</th></tr></thead>'
+        + '      <thead><tr><th>Игрок</th><th>Ответ</th><th>Результат</th><th>Засчитать ответ</th></tr></thead>'
         + '      <tbody class="answers-table-body">' + renderAnswerRows(question) + '</tbody>'
         + '    </table>'
         + '  </div>'
@@ -302,6 +304,20 @@
       tile.querySelector('.close-question').onclick = async () => {
         await post('/api/admin/games/<%= game.id %>/close-question');
       };
+      tile.querySelectorAll('.answer-override').forEach((checkbox) => {
+        checkbox.onchange = async () => {
+          const rows = answersByQuestion.get(questionId) || [];
+          const row = rows.find((r) => Number(r.playerId) === Number(checkbox.dataset.playerId));
+          if (row) { row.manualAccepted = checkbox.checked; row.isCorrect = checkbox.checked; }
+          renderQuestionRibbon();
+          await post('/api/admin/games/<%= game.id %>/answers/override', {
+            questionId,
+            playerId: Number(checkbox.dataset.playerId),
+            accepted: checkbox.checked,
+          });
+        };
+      });
+
     });
     questionRibbon.querySelectorAll('.start-round').forEach((btn) => {
       btn.onclick = async () => {
@@ -364,10 +380,17 @@
     if (!answersByQuestion.has(data.questionId)) {
       answersByQuestion.set(data.questionId, []);
     }
-    answersByQuestion.get(data.questionId).push(data);
+    answersByQuestion.get(data.questionId).push({ ...data, manualAccepted: false });
     if (activeQuestionId === data.questionId) {
       renderQuestionRibbon();
     }
+  });
+
+  socket.on('answer:override', (data) => {
+    const rows = answersByQuestion.get(data.questionId) || [];
+    const item = rows.find((r) => Number(r.playerId) === Number(data.playerId));
+    if (item) { item.manualAccepted = Boolean(data.accepted); item.isCorrect = Boolean(data.accepted); }
+    renderQuestionRibbon();
   });
 
   socket.on('player:list', ({ players }) => {

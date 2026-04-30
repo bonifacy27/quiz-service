@@ -239,7 +239,7 @@
         timerInterval = null;
       }
       timerEl.innerText = '—';
-      timerStripFill.style.width = '0%';
+      timerStripFill.style.height = '0%';
     }
 
     function hideTimerControls() {
@@ -263,7 +263,7 @@
 
         if (durationMs > 0) {
           const percent = Math.max(0, Math.min(100, (msLeft / durationMs) * 100));
-          timerStripFill.style.width = percent + '%';
+          timerStripFill.style.height = percent + '%';
         }
 
         if (msLeft <= 0) {

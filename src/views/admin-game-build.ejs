@@ -195,7 +195,47 @@
                       <input type="hidden" name="videoQuestionUrl" value="<%= question.payload.videoQuestionUrl || '' %>" class="video-question-url-input" />
                       <input type="hidden" name="audioAnswerUrl" value="<%= question.payload.audioAnswerUrl || '' %>" class="audio-answer-url-input" />
                       <input type="hidden" name="videoAnswerUrl" value="<%= question.payload.videoAnswerUrl || '' %>" class="video-answer-url-input" />
-                      <button class="button" type="submit">Сохранить</button></form>
+                      <div class="upload-row">
+                        <button class="button button-outline image-upload-btn" type="button">Картинка вопроса</button>
+                        <button class="button button-outline image-remove-btn" type="button">Удалить картинку</button>
+                        <input type="file" accept="image/*" class="image-file-input" style="display:none" />
+                        <span class="muted image-status"><%= question.payload.imageUrl ? 'Изображение загружено' : '' %></span>
+                      </div>
+                      <div class="upload-row">
+                        <button class="button button-outline media-upload-btn" type="button" data-media-kind="audio">Аудиовопрос</button>
+                        <button class="button button-outline media-upload-btn" type="button" data-media-kind="video">Видеовопрос</button>
+                        <button class="button button-outline media-remove-btn" type="button">Удалить медиа вопроса</button>
+                        <input type="file" accept=".mp3,audio/mpeg,.mp4,video/mp4" class="media-file-input" style="display:none" />
+                        <span class="muted media-status"><%= question.payload.mediaUrl ? (question.payload.mediaType === 'video' ? 'Видео загружено' : 'Аудио загружено') : '' %></span>
+                      </div>
+                      <div class="upload-row">
+                        <button class="button button-outline answer-media-upload-btn" type="button" data-media-kind="audio">Аудиоответ</button>
+                        <button class="button button-outline answer-media-upload-btn" type="button" data-media-kind="video">Видеоответ</button>
+                        <button class="button button-outline answer-media-remove-btn" type="button">Удалить медиа ответа</button>
+                        <input type="file" accept=".mp3,audio/mpeg,.mp4,video/mp4" class="answer-media-file-input" style="display:none" />
+                        <span class="muted answer-media-status"><%= question.payload.audioAnswerUrl || question.payload.videoAnswerUrl ? (question.payload.videoAnswerUrl ? 'Видеоответ загружен' : 'Аудиоответ загружен') : '' %></span>
+                      </div>
+                      <div class="image-preview-wrap" <%= question.payload.imageUrl ? '' : 'style="display:none"' %>>
+                        <a href="<%= question.payload.imageUrl || '#' %>" target="_blank" rel="noopener noreferrer" class="image-preview-link">
+                          <img src="<%= question.payload.imageUrl || '' %>" alt="preview" class="image-preview-thumb" />
+                        </a>
+                      </div>
+                      <div class="media-preview-wrap" <%= question.payload.mediaUrl ? '' : 'style="display:none"' %>>
+                        <% if (question.payload.mediaType === 'video') { %>
+                          <video src="<%= question.payload.mediaUrl || '' %>" controls class="media-preview-player"></video>
+                        <% } else { %>
+                          <audio src="<%= question.payload.mediaUrl || '' %>" controls class="media-preview-player"></audio>
+                        <% } %>
+                      </div>
+                      <div class="answer-media-preview-wrap" <%= question.payload.audioAnswerUrl || question.payload.videoAnswerUrl ? '' : 'style="display:none"' %>>
+                        <% if (question.payload.videoAnswerUrl) { %>
+                          <video src="<%= question.payload.videoAnswerUrl %>" controls class="media-preview-player"></video>
+                        <% } else if (question.payload.audioAnswerUrl) { %>
+                          <audio src="<%= question.payload.audioAnswerUrl %>" controls class="media-preview-player"></audio>
+                        <% } %>
+                      </div>
+                      <button class="button" type="submit">Сохранить</button>
+                    </form>
                   </details>
                 <% } %>
               </article>
@@ -257,6 +297,37 @@
                   <input type="text" name="title" maxlength="200" placeholder="Вопрос" required style="flex:1 1 420px" />
                   <input type="number" name="points" min="1" step="1" value="1" required style="max-width:120px" />
                 </div>
+                <input type="hidden" name="audioQuestionUrl" value="" class="audio-question-url-input" />
+                <input type="hidden" name="videoQuestionUrl" value="" class="video-question-url-input" />
+                <input type="hidden" name="audioAnswerUrl" value="" class="audio-answer-url-input" />
+                <input type="hidden" name="videoAnswerUrl" value="" class="video-answer-url-input" />
+                <div class="upload-row">
+                  <button class="button button-outline image-upload-btn" type="button">Добавить картинку вопроса</button>
+                  <button class="button button-outline image-remove-btn" type="button">Удалить картинку</button>
+                  <input type="file" accept="image/*" class="image-file-input" style="display:none" />
+                  <span class="muted image-status"></span>
+                </div>
+                <div class="upload-row">
+                  <button class="button button-outline media-upload-btn" type="button" data-media-kind="audio">Аудиовопрос</button>
+                  <button class="button button-outline media-upload-btn" type="button" data-media-kind="video">Видеовопрос</button>
+                  <button class="button button-outline media-remove-btn" type="button">Удалить медиа вопроса</button>
+                  <input type="file" accept=".mp3,audio/mpeg,.mp4,video/mp4" class="media-file-input" style="display:none" />
+                  <span class="muted media-status"></span>
+                </div>
+                <div class="upload-row">
+                  <button class="button button-outline answer-media-upload-btn" type="button" data-media-kind="audio">Аудиоответ</button>
+                  <button class="button button-outline answer-media-upload-btn" type="button" data-media-kind="video">Видеоответ</button>
+                  <button class="button button-outline answer-media-remove-btn" type="button">Удалить медиа ответа</button>
+                  <input type="file" accept=".mp3,audio/mpeg,.mp4,video/mp4" class="answer-media-file-input" style="display:none" />
+                  <span class="muted answer-media-status"></span>
+                </div>
+                <div class="image-preview-wrap" style="display:none">
+                  <a href="#" target="_blank" rel="noopener noreferrer" class="image-preview-link">
+                    <img src="" alt="preview" class="image-preview-thumb" />
+                  </a>
+                </div>
+                <div class="media-preview-wrap" style="display:none"></div>
+                <div class="answer-media-preview-wrap" style="display:none"></div>
                 <div data-type-block="text" <%= round.question_type === 'text' ? '' : 'style="display:none"' %>>
                   <input type="text" name="correctAnswer" placeholder="Правильный ответ" />
                 </div>

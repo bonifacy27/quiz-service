@@ -696,3 +696,14 @@ details > summary {
 #leaderboard-block .scoreboard-table td {
   border-color: rgba(255, 255, 255, 0.25);
 }
+
+#answer-box.answer-pop {
+  font-size: 2rem;
+  font-weight: 700;
+  animation: answerPop .45s ease;
+}
+
+@keyframes answerPop {
+  from { transform: scale(.85); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}

@@ -495,6 +495,35 @@ router.post("/admin/games/:id/reveal-answer", requireAdmin, async (req, res) => 
   res.json({ ok: true });
 });
 
+router.post("/admin/games/:id/answers/override", requireAdmin, async (req, res) => {
+  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).json({ error: "Game not found" });
+  const liveGame = ensureGame(game.code);
+  const questionId = Number(req.body.questionId || 0);
+  const playerId = Number(req.body.playerId || 0);
+  const accepted = Boolean(req.body.accepted);
+  if (!questionId || !playerId || !liveGame.currentSessionId) return res.status(400).json({ error: "Некорректные параметры" });
+
+  const row = await get(`SELECT id, is_correct, score_delta FROM player_answers WHERE game_id = ? AND session_id = ? AND question_id = ? AND player_id = ? ORDER BY id DESC LIMIT 1`, [game.id, liveGame.currentSessionId, questionId, playerId]);
+  const question = await get("SELECT points FROM questions WHERE id = ? AND game_id = ?", [questionId, game.id]);
+  if (!row || !question) return res.status(404).json({ error: "Ответ не найден" });
+
+  const targetScore = accepted ? Number(question.points || 100) : 0;
+  const scoreDiff = targetScore - Number(row.score_delta || 0);
+  await run("UPDATE player_answers SET is_correct = ?, score_delta = ? WHERE id = ?", [accepted ? 1 : 0, targetScore, row.id]);
+  if (scoreDiff !== 0) {
+    await run("UPDATE players SET score = score + ? WHERE id = ? AND game_id = ?", [scoreDiff, playerId, game.id]);
+  }
+
+  const key = `${questionId}:${playerId}`;
+  const cached = liveGame.answers.get(key) || {};
+  liveGame.answers.set(key, { ...cached, isCorrect: accepted, scoreDelta: targetScore });
+
+  req.app.get("io").to(`host:${game.code}`).emit("answer:override", { questionId, playerId, accepted });
+  await emitSessionLeaderboard(req.app.get("io"), game, liveGame.currentSessionId);
+  return res.json({ ok: true });
+});
+
 router.post("/admin/games/:id/show-question", requireAdmin, async (req, res) => {
   await ensureExtendedGameSchema();
   const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);

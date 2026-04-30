@@ -181,7 +181,21 @@
                 <% } else { %>
                   <details open>
                     <summary>Редактировать вопрос</summary>
-                    <a class="button button-outline" href="/admin/games/<%= game.id %>/questions/<%= question.id %>/edit">Открыть расширенное редактирование</a>
+                    <form method="post" action="/admin/games/<%= game.id %>/questions/<%= question.id %>/compact-edit" class="compact-form question-edit-form">
+                      <div class="question-add-row">
+                        <input type="text" name="title" maxlength="200" value="<%= question.title %>" required style="flex:1 1 420px" />
+                        <input type="number" name="points" min="1" step="1" value="<%= question.points %>" required style="max-width:120px" />
+                      </div>
+                      <% if (question.type === 'text') { %><input type="text" name="correctAnswer" value="<%= question.payload.correctAnswer || question.payload.correctText || '' %>" placeholder="Правильный ответ" required /><% } %>
+                      <% if (question.type === 'number') { %><input type="number" name="correctNumber" step="any" value="<%= question.payload.correctNumber ?? '' %>" placeholder="Правильное число" required /><% } %>
+                      <input type="hidden" name="imageUrl" value="<%= question.payload.imageUrl || '' %>" class="image-url-input" />
+                      <input type="hidden" name="mediaUrl" value="<%= question.payload.mediaUrl || '' %>" class="media-url-input" />
+                      <input type="hidden" name="mediaType" value="<%= question.payload.mediaType || '' %>" class="media-type-input" />
+                      <input type="hidden" name="audioQuestionUrl" value="<%= question.payload.audioQuestionUrl || '' %>" class="audio-question-url-input" />
+                      <input type="hidden" name="videoQuestionUrl" value="<%= question.payload.videoQuestionUrl || '' %>" class="video-question-url-input" />
+                      <input type="hidden" name="audioAnswerUrl" value="<%= question.payload.audioAnswerUrl || '' %>" class="audio-answer-url-input" />
+                      <input type="hidden" name="videoAnswerUrl" value="<%= question.payload.videoAnswerUrl || '' %>" class="video-answer-url-input" />
+                      <button class="button" type="submit">Сохранить</button></form>
                   </details>
                 <% } %>
               </article>
@@ -198,8 +212,8 @@
 
               <% if (round.question_type === 'abcd') { %>
                 <div class="question-add-row">
-                  <input type="number" name="points" min="1" step="1" value="1" required />
-                  <input type="text" name="title" maxlength="200" placeholder="Вопрос" required />
+                  <input type="text" name="title" maxlength="200" placeholder="Вопрос" required style="flex:1 1 420px" />
+                  <input type="number" name="points" min="1" step="1" value="1" required style="max-width:120px" />
                 </div>
                 <div class="upload-row">
                   <button class="button button-outline image-upload-btn" type="button">Добавить картинку вопроса</button>
@@ -240,11 +254,11 @@
                 <textarea name="hostComment" rows="2" placeholder="Комментарий для ведущего"></textarea>
               <% } else { %>
                 <div class="question-add-row">
-                  <input type="text" name="title" maxlength="200" placeholder="Вопрос" required />
-                  <input type="number" name="points" min="1" step="1" value="1" required />
+                  <input type="text" name="title" maxlength="200" placeholder="Вопрос" required style="flex:1 1 420px" />
+                  <input type="number" name="points" min="1" step="1" value="1" required style="max-width:120px" />
                 </div>
                 <div data-type-block="text" <%= round.question_type === 'text' ? '' : 'style="display:none"' %>>
-                  <input type="text" name="correctText" placeholder="Правильный текст" />
+                  <input type="text" name="correctAnswer" placeholder="Правильный ответ" />
                 </div>
                 <div data-type-block="number" <%= round.question_type === 'number' ? '' : 'style="display:none"' %>>
                   <input type="number" name="correctNumber" step="any" placeholder="Правильное число" />

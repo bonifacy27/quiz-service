@@ -105,15 +105,46 @@ function scheduleQuestionClose(io, gameCode) {
 }
 
 async function emitSessionLeaderboard(io, game, sessionId) {
-  const leaderboard = await all(
+  const rounds = await all(
+    "SELECT id, name FROM rounds WHERE game_id = ? ORDER BY sort_order ASC, id ASC",
+    [game.id]
+  );
+  const players = await all(
     `SELECT id, name, score
      FROM players
      WHERE game_id = ? AND session_id = ?
      ORDER BY score DESC, id ASC`,
     [game.id, sessionId]
   );
+  const roundScores = await all(
+    `SELECT pa.player_id, q.round_id, COALESCE(SUM(pa.score_delta), 0) AS score
+     FROM player_answers pa
+     JOIN questions q ON q.id = pa.question_id
+     WHERE pa.game_id = ? AND pa.session_id = ?
+     GROUP BY pa.player_id, q.round_id`,
+    [game.id, sessionId]
+  );
+
+  const roundScoreMap = new Map();
+  roundScores.forEach((row) => {
+    roundScoreMap.set(`${row.player_id}:${row.round_id}`, Number(row.score || 0));
+  });
+
+  const detailedLeaderboard = players.map((player, index) => ({
+    place: index + 1,
+    playerId: player.id,
+    name: player.name,
+    score: Number(player.score || 0),
+    byRound: rounds.map((round) => ({
+      roundId: round.id,
+      score: roundScoreMap.get(`${player.id}:${round.id}`) || 0,
+    })),
+  }));
+
   io.to(`game:${game.code}`).emit("leaderboard:update", {
-    leaderboard: leaderboard.map((player, index) => ({ ...player, place: index + 1 })),
+    leaderboard: players.map((player, index) => ({ ...player, place: index + 1 })),
+    detailedLeaderboard,
+    rounds,
   });
 }
 
@@ -283,6 +314,28 @@ router.post("/admin/games", requireAdmin, async (req, res) => {
   }
 
   res.json({ ok: true, gameId, code });
+});
+
+
+router.post("/admin/games/:id/sessions/:sessionId/delete", requireAdmin, async (req, res) => {
+  await ensureExtendedGameSchema();
+  const game = await get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+  if (!game) return res.status(404).json({ error: "Game not found" });
+
+  const sessionId = Number(req.params.sessionId || 0);
+  if (!sessionId) return res.status(400).json({ error: "Session not selected" });
+  if (Number(game.current_session_id || 0) === sessionId) {
+    return res.status(400).json({ error: "Нельзя удалить активную сессию" });
+  }
+
+  const session = await get("SELECT * FROM game_sessions WHERE id = ? AND game_id = ?", [sessionId, game.id]);
+  if (!session) return res.status(404).json({ error: "Session not found" });
+
+  await run("DELETE FROM player_answers WHERE game_id = ? AND session_id = ?", [game.id, sessionId]);
+  await run("DELETE FROM players WHERE game_id = ? AND session_id = ?", [game.id, sessionId]);
+  await run("DELETE FROM game_sessions WHERE id = ? AND game_id = ?", [sessionId, game.id]);
+
+  res.json({ ok: true });
 });
 
 router.post("/admin/games/:id/start", requireAdmin, async (req, res) => {

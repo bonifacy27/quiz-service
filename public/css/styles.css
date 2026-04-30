@@ -170,10 +170,10 @@ textarea {
   border-radius: 12px;
 }
 
-.question-media {
+ .question-media {
   display: block;
-  max-width: min(100%, 720px);
-  max-height: 42vh;
+  max-width: min(100%, 980px);
+  max-height: 62vh;
   border-radius: 12px;
   border: 1px solid #334155;
   margin: 0 auto 14px;
@@ -193,20 +193,30 @@ textarea {
   min-width: 320px;
 }
 
+
+.screen-content {
+  min-height: 66vh;
+}
+
 .screen-meta {
   display: flex;
-  gap: 16px;
-  margin: 12px 0 16px;
-  flex-wrap: wrap;
+  justify-content: center;
+  margin: 8px 0;
+}
+
+.screen-timer-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
 }
 
 .timer-strip {
-  width: 100%;
+  width: min(100%, 980px);
   height: 10px;
   border-radius: 999px;
   background: #1e293b;
   overflow: hidden;
-  margin-bottom: 14px;
+  margin: 0 auto 14px;
 }
 
 .timer-strip-fill {

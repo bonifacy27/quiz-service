@@ -10,11 +10,11 @@
   <main class="fullscreen-stage">
     <section class="card fullscreen-card" id="question-block">
       <h1 id="screen-title"><%= game.title %></h1>
+      <div id="screen-content" class="screen-content"></div>
       <div class="screen-meta" id="screen-meta">
-        <span><strong>Таймер:</strong> <span id="screen-timer">—</span></span>
+        <span id="screen-timer" class="screen-timer-value">—</span>
       </div>
       <div class="timer-strip" id="screen-timer-strip"><div id="timer-strip-fill" class="timer-strip-fill"></div></div>
-      <div id="screen-content"></div>
       <div id="answer-box" class="notice" style="display:none"></div>
     </section>
 
@@ -346,8 +346,11 @@
         const video = document.createElement('video');
         video.src = mediaUrl;
         video.autoplay = true;
-        video.controls = true;
+        video.controls = false;
         video.className = 'question-media';
+        video.playsInline = true;
+        video.setAttribute('playsinline', '');
+        video.setAttribute('webkit-playsinline', '');
         video.onended = () => {
           if (pendingTimerAfterVideo && questionId) {
             pendingTimerAfterVideo = false;
@@ -370,8 +373,11 @@
       const video = document.createElement('video');
       video.src = mediaUrl;
       video.autoplay = true;
-      video.controls = true;
+      video.controls = false;
       video.className = 'question-media';
+      video.playsInline = true;
+      video.setAttribute('playsinline', '');
+      video.setAttribute('webkit-playsinline', '');
       activeMediaElement = video;
       const titleNode = contentEl.querySelector('.screen-question-title');
       if (titleNode) titleNode.after(video);

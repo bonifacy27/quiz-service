@@ -1,9 +1,9 @@
-<%- include('partials/header', { title: 'Создание игры', user }) %>
+<%- include('partials/header', { title: 'Редактирование игры', user }) %>
 
 <section class="card">
-  <h1><%= game.title %> • создание игры</h1>
+  <h1><%= game.title %> • редактирование игры</h1>
   <p>
-    <a class="button" href="/admin/games/<%= game.id %>/build">Создание игры</a>
+    <a class="button" href="/admin/games/<%= game.id %>/build">Редактирование игры</a>
     <a class="button button-outline" href="/admin/games/<%= game.id %>/control">Управление игрой</a>
   </p>
 </section>
@@ -186,8 +186,7 @@
                         <input type="text" name="title" maxlength="200" value="<%= question.title %>" required style="flex:1 1 420px" />
                         <input type="number" name="points" min="1" step="1" value="<%= question.points %>" required style="max-width:120px" />
                       </div>
-                      <% if (question.type === 'quiz' || question.type === 'text') { %><input type="text" name="correctAnswer" value="<%= question.payload.correctAnswer || question.payload.correctText || '' %>" placeholder="Правильный ответ" required /><% } %>
-                      <% if (question.type === 'number') { %><input type="number" name="correctNumber" step="any" value="<%= question.payload.correctNumber ?? '' %>" placeholder="Правильное число" required /><% } %>
+                      <% if (question.type === 'quiz' || question.type === 'text') { %><input type="text" name="correctAnswer" value="<%= question.payload.correctAnswer || question.payload.correctText || '' %>" placeholder="Правильный ответ" required style="width:min(100%, 820px)" /><% } %>
                       <input type="hidden" name="imageUrl" value="<%= question.payload.imageUrl || '' %>" class="image-url-input" />
                       <input type="hidden" name="mediaUrl" value="<%= question.payload.mediaUrl || '' %>" class="media-url-input" />
                       <input type="hidden" name="mediaType" value="<%= question.payload.mediaType || '' %>" class="media-type-input" />
@@ -253,7 +252,7 @@
               <% if (round.question_type === 'abcd') { %>
                 <div class="question-add-row">
                   <input type="text" name="title" maxlength="200" placeholder="Вопрос" required style="flex:1 1 420px" />
-                  <input type="number" name="points" min="1" step="1" value="1" required style="max-width:120px" />
+                  <input type="number" name="points" min="1" step="1" value="100" required style="max-width:120px" />
                 </div>
                 <div class="upload-row">
                   <button class="button button-outline image-upload-btn" type="button">Добавить картинку вопроса</button>
@@ -295,7 +294,7 @@
               <% } else { %>
                 <div class="question-add-row">
                   <input type="text" name="title" maxlength="200" placeholder="Вопрос" required style="flex:1 1 420px" />
-                  <input type="number" name="points" min="1" step="1" value="1" required style="max-width:120px" />
+                  <input type="number" name="points" min="1" step="1" value="100" required style="max-width:120px" />
                 </div>
                 <input type="hidden" name="audioQuestionUrl" value="" class="audio-question-url-input" />
                 <input type="hidden" name="videoQuestionUrl" value="" class="video-question-url-input" />
@@ -329,15 +328,12 @@
                 <div class="media-preview-wrap" style="display:none"></div>
                 <div class="answer-media-preview-wrap" style="display:none"></div>
                 <div data-type-block="text" <%= round.question_type === 'quiz' || round.question_type === 'text' ? '' : 'style="display:none"' %>>
-                  <input type="text" name="correctAnswer" placeholder="Правильный ответ" />
-                </div>
-                <div data-type-block="number" <%= round.question_type === 'number' ? '' : 'style="display:none"' %>>
-                  <input type="number" name="correctNumber" step="any" placeholder="Правильное число" />
+                  <input type="text" name="correctAnswer" placeholder="Правильный ответ" required style="width:min(100%, 820px)" />
                 </div>
               <% } %>
 
               <label>Лимит времени (сек)</label>
-              <input type="number" name="timeLimitSec" min="1" value="15" />
+              <input type="number" name="timeLimitSec" min="1" value="<%= round.settings.answerTime === '60' ? 60 : (round.settings.answerTime === 'custom' ? Number(round.settings.customAnswerTimeSec || 30) : 30) %>" />
               <button class="button" type="submit">Добавить вопрос</button>
               <button class="button button-outline round-close-btn" type="button" data-round-close>Закрыть</button>
             </form>

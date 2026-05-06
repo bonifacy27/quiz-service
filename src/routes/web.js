@@ -42,7 +42,27 @@ function getPublicBaseUrl(req) {
   return config.appUrl;
 }
 
-function buildQuestionPayload(type, body) {
+
+function parseRoundSettingsJson(settingsJson) {
+  try {
+    const parsed = JSON.parse(settingsJson || "{}");
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function getRoundDefaultTimeLimitSec(round) {
+  const settings = parseRoundSettingsJson(round && round.settings_json);
+  if (String(settings.answerTime) === "60") return 60;
+  if (String(settings.answerTime) === "custom") {
+    const custom = Number(settings.customAnswerTimeSec || 0);
+    if (Number.isFinite(custom) && custom > 0) return custom;
+  }
+  return 30;
+}
+
+function buildQuestionPayload(type, body, round = null) {
   const timeLimitSec = Number(body.timeLimitSec || 0);
   const imageUrl = String(body.imageUrl || "").trim();
   const mediaUrl = String(body.mediaUrl || "").trim();
@@ -74,7 +94,7 @@ function buildQuestionPayload(type, body) {
       payload: {
         options,
         correct,
-        timeLimitSec: timeLimitSec > 0 ? timeLimitSec : 15,
+        timeLimitSec: timeLimitSec > 0 ? timeLimitSec : getRoundDefaultTimeLimitSec(round),
         imageUrl,
         audioQuestionUrl: audioQuestionUrl || fallbackAudioQuestionUrl,
         audioAnswerUrl,
@@ -102,7 +122,7 @@ function buildQuestionPayload(type, body) {
       payload: {
         correctAnswer,
         correctText: correctAnswer,
-        timeLimitSec: timeLimitSec > 0 ? timeLimitSec : 30,
+        timeLimitSec: timeLimitSec > 0 ? timeLimitSec : getRoundDefaultTimeLimitSec(round),
         imageUrl,
         audioQuestionUrl: audioQuestionUrl || fallbackAudioQuestionUrl,
         audioAnswerUrl,
@@ -124,7 +144,7 @@ function buildQuestionPayload(type, body) {
     return {
       payload: {
         correctNumber,
-        timeLimitSec: timeLimitSec > 0 ? timeLimitSec : 30,
+        timeLimitSec: timeLimitSec > 0 ? timeLimitSec : getRoundDefaultTimeLimitSec(round),
         imageUrl,
         hostComment,
       },
@@ -134,7 +154,7 @@ function buildQuestionPayload(type, body) {
   if (type === "buzz") {
     return {
       payload: {
-        timeLimitSec: timeLimitSec > 0 ? timeLimitSec : 10,
+        timeLimitSec: timeLimitSec > 0 ? timeLimitSec : getRoundDefaultTimeLimitSec(round),
         imageUrl,
         hostComment,
       },
@@ -402,7 +422,7 @@ router.post("/admin/games/:id/questions", requireAdmin, async (req, res) => {
     });
   }
 
-  const { payload, error } = buildQuestionPayload(round.question_type, req.body);
+  const { payload, error } = buildQuestionPayload(round.question_type, req.body, round);
   if (error) return res.status(400).render("error", { message: error });
 
   const order = await get("SELECT COALESCE(MAX(sort_order), 0) AS maxOrder FROM questions WHERE game_id = ? AND round_id = ?", [
@@ -436,7 +456,7 @@ router.post("/admin/games/:id/questions/create", requireAdmin, async (req, res) 
     return res.status(400).json({ error: `В раунде "${round.name}" разрешены только вопросы типа ${round.question_type}` });
   }
 
-  const { payload, error } = buildQuestionPayload(round.question_type, req.body);
+  const { payload, error } = buildQuestionPayload(round.question_type, req.body, round);
   if (error) return res.status(400).json({ error });
 
   const order = await get("SELECT COALESCE(MAX(sort_order), 0) AS maxOrder FROM questions WHERE game_id = ? AND round_id = ?", [
@@ -580,7 +600,7 @@ router.post("/admin/games/:id/questions/:questionId/compact-edit", requireAdmin,
   const points = Number(req.body.points || 100);
   if (!title) return res.status(400).render("error", { message: "Введите заголовок вопроса" });
 
-  const { payload, error } = buildQuestionPayload(question.type, req.body);
+  const { payload, error } = buildQuestionPayload(question.type, req.body, await get("SELECT * FROM rounds WHERE id = ?", [question.round_id]));
   if (error) return res.status(400).render("error", { message: error });
 
   await run("UPDATE questions SET title = ?, payload_json = ?, points = ? WHERE id = ? AND game_id = ?", [

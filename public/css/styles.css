@@ -697,15 +697,10 @@ details > summary {
   border-color: rgba(255, 255, 255, 0.25);
 }
 
-#answer-box.answer-pop {
-  font-size: 2rem;
-  font-weight: 700;
-  animation: answerPop .45s ease;
-}
 
 @keyframes answerPop {
-  from { transform: scale(.85); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
+  from { transform: translateY(14px) scale(.92); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
 }
 
 .answer-video-overlay {
@@ -713,4 +708,34 @@ details > summary {
   z-index: 3;
   margin-top: -8px;
   box-shadow: 0 12px 36px rgba(0,0,0,.35);
+}
+
+.qr-layout { display:flex; gap:24px; align-items:flex-start; }
+.qr-main { flex:0 0 auto; }
+.qr-players-col { flex:1 1 320px; max-height:60vh; overflow:auto; }
+
+#answer-box {
+  position: fixed;
+  inset: 0;
+  margin: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(2, 6, 23, 0.2);
+  z-index: 1400;
+  pointer-events: none;
+}
+
+#answer-box.answer-pop {
+  font-size: 2rem;
+  font-weight: 700;
+  animation: answerPop .55s ease;
+}
+
+.answer-pop-card {
+  background:#dcfce7;
+  color:#166534;
+  padding:18px 28px;
+  border-radius:14px;
+  box-shadow:0 12px 28px rgba(0,0,0,.25);
 }

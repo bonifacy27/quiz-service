@@ -18,12 +18,18 @@
     </section>
 
     <section class="card fullscreen-card" id="qr-block" style="display:none">
-      <h2>Подключение игроков</h2>
-      <img src="<%= qrDataUrl %>" alt="QR code" class="qr" />
-      <p>Код: <code><%= game.code %></code></p>
-      <p><a href="<%= qrUrl %>"><%= qrUrl %></a></p>
-      <h3>Подключенные игроки</h3>
-      <ul id="qr-players-list"></ul>
+      <div class="qr-layout">
+        <div class="qr-main">
+          <h2>Подключение игроков</h2>
+          <img src="<%= qrDataUrl %>" alt="QR code" class="qr" />
+          <p>Код: <code><%= game.code %></code></p>
+          <p><a href="<%= qrUrl %>"><%= qrUrl %></a></p>
+        </div>
+        <aside class="qr-players-col">
+          <h3>Подключенные игроки</h3>
+          <ul id="qr-players-list"></ul>
+        </aside>
+      </div>
     </section>
 
     <section class="card fullscreen-card" id="players-block" style="display:none"><h2>Игроки</h2><ul id="players-list"></ul></section>
@@ -135,11 +141,11 @@
       if (type === 'abcd') {
         answerBox.style.display = 'none';
       } else {
-        answerBox.innerText = text || 'Правильный ответ показан';
+        answerBox.innerHTML = '<div class="answer-pop-card">' + (text || 'Правильный ответ показан') + '</div>';
         answerBox.classList.remove('answer-pop');
         void answerBox.offsetWidth;
         answerBox.classList.add('answer-pop');
-        answerBox.style.display = 'block';
+        answerBox.style.display = 'flex';
       }
     });
 
@@ -284,14 +290,14 @@
       contentEl.dataset.questionId = String(question.id || '');
       renderQuestionImage(question.payload);
 
+      const mediaSlot = document.createElement('div');
+      mediaSlot.className = 'question-media-slot';
+      contentEl.appendChild(mediaSlot);
+
       const title = document.createElement('h2');
       title.className = 'screen-question-title';
       title.innerText = question.title;
       contentEl.appendChild(title);
-
-      const mediaSlot = document.createElement('div');
-      mediaSlot.className = 'question-media-slot';
-      contentEl.appendChild(mediaSlot);
 
       if (question.type === 'abcd' && question.payload && Array.isArray(question.payload.options)) {
         const optionsGrid = document.createElement('div');

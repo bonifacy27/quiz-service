@@ -70,7 +70,8 @@
     let latestRounds = [];
     let activeTimerDurationMs = 0;
     let activeMediaElement = null;
-    let pendingTimerAfterVideo = false;
+    let currentQuestionState = null;
+    let pendingTimerAfterMedia = false;
 
     function enableFullscreen() {
       if (document.fullscreenElement || !document.documentElement.requestFullscreen) return;
@@ -104,15 +105,15 @@
     });
 
     socket.on('question:show', (question) => {
+      currentQuestionState = question;
       answerBox.style.display = 'none';
       stopMediaPlayback();
       showTimerControls();
       renderQuestion(question);
       playQuestionMediaIfNeeded(question);
-      const questionVideoUrl = getQuestionVideoUrl(question.payload);
-      pendingTimerAfterVideo = Boolean(questionVideoUrl && !question.timerEndsAt);
+      pendingTimerAfterMedia = Boolean(hasQuestionMedia(question.payload) && !question.timerEndsAt);
       activeTimerDurationMs = Number(question.payload && question.payload.timeLimitSec ? question.payload.timeLimitSec * 1000 : 0);
-      if (pendingTimerAfterVideo) {
+      if (pendingTimerAfterMedia) {
         stopTimer();
       } else {
         startTimer(question.timerEndsAt, activeTimerDurationMs);
@@ -154,7 +155,7 @@
       if (reason !== 'reveal_answer') {
         stopMediaPlayback();
       }
-      pendingTimerAfterVideo = false;
+      pendingTimerAfterMedia = false;
     });
 
     socket.on('round:show', ({ roundNumber, name, description }) => {
@@ -172,6 +173,10 @@
 
     socket.on('question:timer', ({ timerEndsAt, durationMs }) => {
       if (durationMs) activeTimerDurationMs = Number(durationMs);
+      if (currentQuestionState && hasQuestionMedia(currentQuestionState.payload) && !currentQuestionState.timerEndsAt && timerEndsAt) {
+        currentQuestionState.timerEndsAt = timerEndsAt;
+        renderQuestion(currentQuestionState);
+      }
       startTimer(timerEndsAt || null, activeTimerDurationMs);
     });
 
@@ -294,10 +299,20 @@
       mediaSlot.className = 'question-media-slot';
       contentEl.appendChild(mediaSlot);
 
+      const shouldHideTextUntilTimer = hasQuestionMedia(question.payload) && !question.timerEndsAt;
+
       const title = document.createElement('h2');
       title.className = 'screen-question-title';
-      title.innerText = question.title;
+      title.innerText = shouldHideTextUntilTimer ? 'Воспроизведение медиа...' : question.title;
       contentEl.appendChild(title);
+
+      if (shouldHideTextUntilTimer) {
+        const notice = document.createElement('div');
+        notice.className = 'notice';
+        notice.innerText = 'Текст вопроса появится после запуска таймера';
+        contentEl.appendChild(notice);
+        return;
+      }
 
       if (question.type === 'abcd' && question.payload && Array.isArray(question.payload.options)) {
         const optionsGrid = document.createElement('div');
@@ -337,6 +352,16 @@
         audio.autoplay = true;
         audio.controls = false;
         audio.className = role === 'answer' ? 'answer-audio' : 'question-audio';
+        audio.onended = () => {
+          if (role === 'question') {
+            socket.emit('question:media:ended', {
+              gameCode: game.code,
+              questionId: questionId || Number(contentEl.dataset.questionId || 0),
+              role: 'question',
+              mediaType: 'audio',
+            });
+          }
+        };
         activeMediaElement = audio;
         document.body.appendChild(audio);
         audio.play().catch(() => {});
@@ -353,8 +378,8 @@
         video.setAttribute('playsinline', '');
         video.setAttribute('webkit-playsinline', '');
         video.onended = () => {
-          if (pendingTimerAfterVideo && questionId) {
-            pendingTimerAfterVideo = false;
+          if (pendingTimerAfterMedia && questionId) {
+            pendingTimerAfterMedia = false;
             socket.emit('question:media:ended', {
               gameCode: game.code,
               questionId,
@@ -405,13 +430,14 @@
       }
     }
 
-    function getQuestionVideoUrl(payload) {
-      if (!payload) return '';
+    function hasQuestionMedia(payload) {
+      if (!payload) return false;
       const videoQuestionUrl = String(payload.videoQuestionUrl || '').trim();
-      if (videoQuestionUrl) return videoQuestionUrl;
-      const legacyMediaType = payload.mediaType === 'video' ? 'video' : '';
+      const audioQuestionUrl = String(payload.audioQuestionUrl || '').trim();
+      if (videoQuestionUrl || audioQuestionUrl) return true;
+      const legacyMediaType = payload.mediaType === 'audio' || payload.mediaType === 'video' ? payload.mediaType : '';
       const legacyMediaUrl = String(payload.mediaUrl || '').trim();
-      return legacyMediaType && legacyMediaUrl ? legacyMediaUrl : '';
+      return Boolean(legacyMediaType && legacyMediaUrl);
     }
   </script>
 </body>

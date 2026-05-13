@@ -32,6 +32,7 @@
     let selectedOptionIndex = null;
     let activeTimerDurationMs = 0;
     let isTimerExpired = false;
+    let shouldHideQuestionText = false;
 
     function enableFullscreen() {
       if (document.fullscreenElement || !document.documentElement.requestFullscreen) return;
@@ -51,6 +52,7 @@
       selectedOptionIndex = null;
       isTimerExpired = false;
       activeTimerDurationMs = Number(question.payload && question.payload.timeLimitSec ? question.payload.timeLimitSec * 1000 : 0);
+      shouldHideQuestionText = hasQuestionMedia(question.payload) && !question.timerEndsAt;
       renderQuestion(question);
     });
 
@@ -64,6 +66,11 @@
 
     socket.on('question:timer', ({ timerEndsAt, durationMs }) => {
       if (durationMs) activeTimerDurationMs = Number(durationMs);
+      if (currentQuestion && shouldHideQuestionText && timerEndsAt) {
+        currentQuestion.timerEndsAt = timerEndsAt;
+        shouldHideQuestionText = false;
+        renderQuestion(currentQuestion);
+      }
       startTimer(timerEndsAt || null, activeTimerDurationMs);
     });
 
@@ -163,6 +170,16 @@
       timerInterval = setInterval(tick, 100);
     }
 
+
+    function hasQuestionMedia(payload) {
+      if (!payload) return false;
+      const videoQuestionUrl = String(payload.videoQuestionUrl || '').trim();
+      const audioQuestionUrl = String(payload.audioQuestionUrl || '').trim();
+      if (videoQuestionUrl || audioQuestionUrl) return true;
+      const legacyMediaType = payload.mediaType === 'audio' || payload.mediaType === 'video' ? payload.mediaType : '';
+      const legacyMediaUrl = String(payload.mediaUrl || '').trim();
+      return Boolean(legacyMediaType && legacyMediaUrl);
+    }
     function canSubmit(question) {
       if (!question || question.status !== 'active') return false;
       return !answeredQuestionIds.has(question.id);
@@ -189,9 +206,18 @@
       root.innerHTML = '';
       answerResultBox.style.display = 'none';
       answerResultBox.innerHTML = '';
-      questionTitle.innerText = question.title;
+      const hideTextNow = shouldHideQuestionText && question && !question.timerEndsAt;
+      questionTitle.innerText = hideTextNow ? 'Воспроизведение медиа...' : (question.title || 'Вопрос');
       startTimer(question.timerEndsAt, activeTimerDurationMs);
       renderQuestionImage(question.payload);
+      if (hideTextNow) {
+        const notice = document.createElement('div');
+        notice.className = 'notice';
+        notice.innerText = 'Текст вопроса появится после запуска таймера';
+        root.appendChild(notice);
+        lockInputs();
+        return;
+      }
 
       const submitAllowed = canSubmit(question);
 

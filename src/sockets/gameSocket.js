@@ -153,7 +153,7 @@ function registerGameSocket(io) {
     });
 
     socket.on("question:media:ended", async ({ gameCode, questionId, role, mediaType }) => {
-      if (role !== "question" || mediaType !== "video") return;
+      if (role !== "question" || (mediaType !== "video" && mediaType !== "audio")) return;
       const liveGame = ensureGame(gameCode);
       if (!liveGame.currentQuestion || liveGame.currentQuestionStatus !== "active") return;
       if (Number(liveGame.currentQuestion.id) !== Number(questionId)) return;
@@ -169,7 +169,7 @@ function registerGameSocket(io) {
       io.to(`host:${gameCode}`).emit("question:status", {
         questionId: liveGame.currentQuestion.id,
         status: liveGame.currentQuestionStatus,
-        reason: "timer_started_after_video",
+        reason: mediaType === "audio" ? "timer_started_after_audio" : "timer_started_after_video",
         timerEndsAt: liveGame.timerEndsAt,
       });
 

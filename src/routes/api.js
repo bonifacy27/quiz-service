@@ -60,6 +60,16 @@ function hasQuestionVideo(payload) {
   return Boolean(legacyMediaType && legacyMediaUrl);
 }
 
+function hasQuestionMedia(payload) {
+  if (!payload || typeof payload !== "object") return false;
+  const questionVideoUrl = String(payload.videoQuestionUrl || "").trim();
+  const questionAudioUrl = String(payload.audioQuestionUrl || "").trim();
+  if (questionVideoUrl || questionAudioUrl) return true;
+  const legacyMediaType = payload.mediaType === "audio" || payload.mediaType === "video" ? payload.mediaType : "";
+  const legacyMediaUrl = String(payload.mediaUrl || "").trim();
+  return Boolean(legacyMediaType && legacyMediaUrl);
+}
+
 function hydrateQuestionRow(row) {
   let payload = {};
   try {
@@ -207,7 +217,7 @@ async function startQuestion(io, game, roundId) {
     payload,
   };
   liveGame.currentQuestionStatus = "active";
-  liveGame.timerEndsAt = hasQuestionVideo(payload)
+  liveGame.timerEndsAt = hasQuestionMedia(payload)
     ? null
     : (payload.timeLimitSec ? Date.now() + Number(payload.timeLimitSec) * 1000 : null);
 
@@ -245,7 +255,7 @@ async function showQuestionById(io, game, roundId, questionId) {
   liveGame.roundQuestionIndex = targetIndex;
   liveGame.currentQuestion = question;
   liveGame.currentQuestionStatus = "active";
-  liveGame.timerEndsAt = hasQuestionVideo(question.payload)
+  liveGame.timerEndsAt = hasQuestionMedia(question.payload)
     ? null
     : (question.payload.timeLimitSec ? Date.now() + Number(question.payload.timeLimitSec) * 1000 : null);
 
@@ -463,34 +473,42 @@ router.post("/admin/games/:id/reveal-answer", requireAdmin, async (req, res) => 
   const liveGame = ensureGame(game.code);
   if (!liveGame.currentQuestion) return res.status(400).json({ error: "Нет активного вопроса" });
 
-  req.app.get("io").to(`game:${game.code}`).emit("question:answer", {
-    questionId: liveGame.currentQuestion.id,
-    type: liveGame.currentQuestion.type,
-    payload: liveGame.currentQuestion.payload,
-    text: getCorrectAnswerText(liveGame.currentQuestion),
-  });
-  emitAnswerResultsForCurrentQuestion(req.app.get("io"), game.code, liveGame);
-
+  const io = req.app.get("io");
   const payload = liveGame.currentQuestion.payload || {};
   const answerAudioUrl = String(payload.audioAnswerUrl || "").trim();
   const answerVideoUrl = String(payload.videoAnswerUrl || "").trim();
-  if (answerAudioUrl) {
-    req.app.get("io").to(`game:${game.code}`).emit("question:media:start", {
-      questionId: liveGame.currentQuestion.id,
-      mediaType: "audio",
-      mediaUrl: answerAudioUrl,
-      role: "answer",
-    });
+  const hasAnswerMedia = Boolean(answerAudioUrl || answerVideoUrl);
+
+  if (hasAnswerMedia) {
+    if (answerAudioUrl) {
+      io.to(`game:${game.code}`).emit("question:media:start", {
+        questionId: liveGame.currentQuestion.id,
+        mediaType: "audio",
+        mediaUrl: answerAudioUrl,
+        role: "answer",
+      });
+    }
+    if (answerVideoUrl) {
+      io.to(`game:${game.code}`).emit("question:media:start", {
+        questionId: liveGame.currentQuestion.id,
+        mediaType: "video",
+        mediaUrl: answerVideoUrl,
+        role: "answer",
+      });
+    }
   }
-  if (answerVideoUrl) {
-    req.app.get("io").to(`game:${game.code}`).emit("question:media:start", {
+
+  setTimeout(() => {
+    io.to(`game:${game.code}`).emit("question:answer", {
       questionId: liveGame.currentQuestion.id,
-      mediaType: "video",
-      mediaUrl: answerVideoUrl,
-      role: "answer",
+      type: liveGame.currentQuestion.type,
+      payload: liveGame.currentQuestion.payload,
+      text: getCorrectAnswerText(liveGame.currentQuestion),
     });
-  }
-  closeCurrentQuestion(req.app.get("io"), game.code, "reveal_answer");
+    emitAnswerResultsForCurrentQuestion(io, game.code, liveGame);
+  }, hasAnswerMedia ? 5000 : 0);
+
+  closeCurrentQuestion(io, game.code, "reveal_answer");
 
   res.json({ ok: true });
 });

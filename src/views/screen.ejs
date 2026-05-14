@@ -309,6 +309,14 @@
         return;
       }
 
+      if (shouldHideTextUntilTimer) {
+        const notice = document.createElement('div');
+        notice.className = 'notice';
+        notice.innerText = 'Текст вопроса появится после запуска таймера';
+        contentEl.appendChild(notice);
+        return;
+      }
+
       if (question.type === 'abcd' && question.payload && Array.isArray(question.payload.options)) {
         const optionsGrid = document.createElement('div');
         optionsGrid.className = 'options-grid';

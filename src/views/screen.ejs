@@ -300,11 +300,14 @@
       contentEl.appendChild(mediaSlot);
 
       const shouldHideTextUntilTimer = hasQuestionMedia(question.payload) && !question.timerEndsAt;
-
-      const title = document.createElement('h2');
-      title.className = 'screen-question-title';
-      title.innerText = shouldHideTextUntilTimer ? 'Воспроизведение медиа...' : question.title;
-      contentEl.appendChild(title);
+      if (!shouldHideTextUntilTimer) {
+        const title = document.createElement('h2');
+        title.className = 'screen-question-title';
+        title.innerText = question.title;
+        contentEl.appendChild(title);
+      } else {
+        return;
+      }
 
       if (shouldHideTextUntilTimer) {
         const notice = document.createElement('div');

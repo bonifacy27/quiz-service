@@ -75,6 +75,9 @@
     });
 
     socket.on('question:answer', ({ type, payload }) => {
+      answerResultBox.style.display = 'block';
+      answerResultBox.classList.remove('answer-result-highlight');
+      answerResultBox.innerText = 'Смотри ответ на экране';
       if (type === 'abcd' && payload && Number.isInteger(Number(payload.correct))) {
         const correctIndex = Number(payload.correct);
         root.querySelectorAll('[data-option-index]').forEach((node) => {
@@ -180,6 +183,14 @@
       const legacyMediaUrl = String(payload.mediaUrl || '').trim();
       return Boolean(legacyMediaType && legacyMediaUrl);
     }
+    function hasQuestionVideo(payload) {
+      if (!payload) return false;
+      const videoQuestionUrl = String(payload.videoQuestionUrl || '').trim();
+      if (videoQuestionUrl) return true;
+      const legacyMediaType = payload.mediaType === 'video' ? payload.mediaType : '';
+      const legacyMediaUrl = String(payload.mediaUrl || '').trim();
+      return Boolean(legacyMediaType && legacyMediaUrl);
+    }
     function canSubmit(question) {
       if (!question || question.status !== 'active') return false;
       return !answeredQuestionIds.has(question.id);
@@ -207,14 +218,17 @@
       answerResultBox.style.display = 'none';
       answerResultBox.innerHTML = '';
       const hideTextNow = shouldHideQuestionText && question && !question.timerEndsAt;
-      questionTitle.innerText = hideTextNow ? 'Воспроизведение медиа...' : (question.title || 'Вопрос');
+      const hideForVideoNow = hideTextNow && hasQuestionVideo(question.payload);
+      questionTitle.innerText = hideForVideoNow ? 'Смотри вопрос на экране' : (question.title || 'Вопрос');
       startTimer(question.timerEndsAt, activeTimerDurationMs);
       renderQuestionImage(question.payload);
       if (hideTextNow) {
-        const notice = document.createElement('div');
-        notice.className = 'notice';
-        notice.innerText = 'Текст вопроса появится после запуска таймера';
-        root.appendChild(notice);
+        if (hideForVideoNow) {
+          const notice = document.createElement('div');
+          notice.className = 'notice';
+          notice.innerText = 'Смотри вопрос на экране';
+          root.appendChild(notice);
+        }
         lockInputs();
         return;
       }
